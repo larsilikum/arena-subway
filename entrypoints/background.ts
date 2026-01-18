@@ -9,22 +9,33 @@ export default defineBackground(() => {
         startLine(message.value.id)
         return true
       case "fetchLines":
-        fetch(`http://localhost:8102/api/lines?domain=${message.value.domain}`).then(r => r.json()).then(d => sendResponse(d))
+        fetch(`http://api.are.na/v2/search/blocks?q=${message.value.title}`)
+          .then(r => r.json())
+          .then(d => {
+            console.log(d)
+            if (d.blocks.length) {
+              fetch(`http://api.are.na/v2/blocks/${d.blocks[0].id}/channels`)
+                .then(r => r.json())
+                .then(d => sendResponse(d))
+            } else {
+              return null
+            }
+          })
         return true
       default:
         console.error("unknown message type")
     }
   }
 
-  async function startLine(id: number) {
-    const res = await fetch(`http://localhost:8102/api/line?id=${id}`)
-    const line = await res.json()
-    const stations = line.stations
+  async function startLine(slug: string) {
+    const res = await fetch(`http://api.are.na/v2/channels/${slug}/contents`)
+    const channel = await res.json()
+    const stations = channel.contents.filter((content: any) => content.class === 'Link')
 
-    timeOutLoopArray(stations.length, 5000, async (i: number) => {
+    timeOutLoopArray(stations.length, 10000, async (i: number) => {
       const query = await browser.tabs.query({active: true})
       const activeTab = query[0]
-      if (activeTab.id) browser.tabs.sendMessage(activeTab.id, { type: "navigate", value: { url: stations[i].url }})
+      if (activeTab.id) browser.tabs.sendMessage(activeTab.id, { type: "navigate", value: { url: stations[i].source.url }})
     }, 0)
   }
 

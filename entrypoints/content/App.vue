@@ -32,14 +32,16 @@ import background from '../background'
 
 
   onMounted(async () => {
-    const url = window.location.href
-    const domain = getDomainFromUrl(url)
+    // const url = window.location.href
+    // const domain = getDomainFromUrl(url)
+    const title = document.title
     try {
       browser.runtime.sendMessage({
         type: "fetchLines",
-        value: { domain }
+        value: { title }
       }).then(d => {
-        lines.value = d
+        console.log(d)
+        lines.value = d.channels || []
       })
     } catch (error) {
       console.error("failed to fetch lines:", error)
@@ -50,10 +52,10 @@ import background from '../background'
 <template>
   <div class="container">
     <template v-if="lines">
-      <div v-for="line in lines" class="lines" :style="`background-color: ${hashStringToColor(line.name)};`">
-        <h5>Line: {{ line.name }}</h5>
-        <p>{{ line.description }}</p>
-        <button @click="startRide(line.id)">start</button>
+      <div v-for="line in lines" class="lines" :style="`background-color: ${hashStringToColor(line.title)};`">
+        <h5>Line: {{ line.title }}</h5>
+        <p>{{ line.metadata.description }}</p>
+        <button @click="startRide(line.slug)">start</button>
       </div>
     </template>
   </div>
