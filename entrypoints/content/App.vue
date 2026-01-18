@@ -1,10 +1,10 @@
 <script lang="ts" setup>
 import background from '../background'
 
-  const lines = ref(null)
+  const lines = ref<any[]>([])
 
-  function startRide(id: number) {
-    browser.runtime.sendMessage({ type: "start", value: { id }})
+  function startRide(slug: string) {
+    browser.runtime.sendMessage({ type: "start", value: { slug }})
   }
 
   function getDomainFromUrl(url: string): string {
@@ -35,27 +35,36 @@ import background from '../background'
     // const url = window.location.href
     // const domain = getDomainFromUrl(url)
     const title = document.title
+    const url = window.location.href
     try {
       browser.runtime.sendMessage({
         type: "fetchLines",
-        value: { title }
-      }).then(d => {
-        console.log(d)
-        lines.value = d.channels || []
+        value: { title, url }
       })
     } catch (error) {
       console.error("failed to fetch lines:", error)
     }
+    browser.runtime.onMessage.addListener((message) => {
+      if (message.type === "channelsReceived") {
+        console.log("new channels:", message.channels.length)
+        lines.value = [...(lines.value || []), ...message.channels]
+      }
+    })
   })
 </script>
 
 <template>
   <div class="container">
     <template v-if="lines">
-      <div v-for="line in lines" class="lines" :style="`background-color: ${hashStringToColor(line.title)};`">
-        <h5>Line: {{ line.title }}</h5>
-        <p>{{ line.metadata.description }}</p>
-        <button @click="startRide(line.slug)">start</button>
+      <div class="line-container">
+        <div v-for="line in lines" class="lines" :style="`background-color: ${hashStringToColor(line.title)};`">
+          <h5 class="line-abbr">{{ line.title.substring(0,1) }}</h5>
+          <div class="additional-info">
+            <h5>{{ line.title }}</h5>
+            <p>{{ line.metadata?.description }}</p>
+            <button @click="startRide(line.slug)">start</button>
+          </div>
+        </div>
       </div>
     </template>
   </div>
@@ -68,5 +77,40 @@ import background from '../background'
   right: 0;
   z-index: 999;
   pointer-events: all;
+}
+
+.line-container {
+  width: 100%;
+  max-width: 100dvw;
+  margin: .2rem;
+  display: flex;
+  gap: .2rem;
+  align-items: start;
+  flex-wrap: wrap;
+}
+
+.lines {
+  position: relative;
+  line-height: 1;
+  margin: 0;
+  border-radius: .5rem;
+  padding: .2rem .4rem;
+}
+
+h5 {
+  line-height: 1;
+  margin: 0;
+}
+
+.lines:hover .line-abbr {
+  display: none;
+}
+
+.additional-info {
+  display: none;
+}
+
+.lines:hover .additional-info {
+  display: block;
 }
 </style>

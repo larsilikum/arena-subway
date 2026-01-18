@@ -16,7 +16,6 @@ export default defineContentScript({
       ui.mount()
     })
 
-    browser.runtime.onMessage.addListener(handleMessages)
   }
 })
 
@@ -37,13 +36,4 @@ function defineOverlay(ctx: ContentScriptContext) {
   })
 }
 
-function handleMessages(message: Message) {
-  switch (message.type) {
-    case "navigate":
-      window.location.href = message.value.url
-      break
-    default:
-      console.error("Unknown message type")
-  }
-}
 
