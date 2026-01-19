@@ -46,6 +46,7 @@ import background from '../background'
     }
     browser.runtime.onMessage.addListener((message) => {
       if (message.type === "channelsReceived") {
+        console.log("receiving channels", message)
         console.log("new channels:", message.channels.length)
         lines.value = [...(lines.value || []), ...message.channels]
       }
