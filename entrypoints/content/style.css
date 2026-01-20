@@ -2,4 +2,20 @@ html {
   position: fixed;
   z-index: 99999;
   pointer-events: none;
+  font-family: Brigade, sans-serif;
+}
+
+body {
+  font-size: 18px;
+}
+
+@media screen and (min-width: 1920px) {
+  body {
+    font-size: 20px;
+  }
+}
+@media screen and (max-width: 900px) {
+  body {
+    font-size: 12px;
+  }
 }

@@ -25,6 +25,44 @@ function defineOverlay(ctx: ContentScriptContext) {
     position: "modal",
     zIndex: 999,
     onMount(container, _shadow, shadowHost) {
+      // Load custom font. Don't forget add font to web accessible resources in wxt.config.ts
+      const brigadeRegular = browser.runtime.getURL("/fonts/Fundamental_Brigade.ttf")
+      const brigadeLight = browser.runtime.getURL("/fonts/Fundamental_Brigade_Schlank.ttf")
+      const brigadeBold = browser.runtime.getURL("/fonts/Fundamental_Brigade_Schwer.ttf")
+      const brigadeCondensed = browser.runtime.getURL("/fonts/Fundamental_Brigade_Condensed.ttf")
+
+      // create a style element
+      const fontStyle = document.createElement("style")
+
+      // add font face
+      fontStyle.textContent = `
+                  @font-face {
+                    font-family: Brigade;
+                    src: url("${brigadeRegular}");
+                    font-weight: normal;
+                  }
+
+                  @font-face {
+                    font-family: Brigade;
+                    src: url("${brigadeLight}");
+                    font-weight: 200;
+                  }
+
+                  @font-face {
+                    font-family: Brigade;
+                    src: url("${brigadeBold}");
+                    font-weight: bold;
+                  }
+
+                  @font-face {
+                    font-family: BrigadeCondensed;
+                    src: url("${brigadeCondensed}");
+                    font-weight: normal;
+                    font-stretch: codensed;
+                  }
+              `
+      // append style element to head
+      document.head.appendChild(fontStyle)
       const app = createApp(App)
       app.mount(container)
       shadowHost.style.pointerEvents = "none"

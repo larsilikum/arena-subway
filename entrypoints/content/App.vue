@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import background from '../background'
 import LineDisplay from '@/components/LineDisplay.vue'
+import hashColor from '@/utils/hashColor'
 
 const lines = ref<any[]>([])
 const line = ref<any>(null)
@@ -16,22 +17,7 @@ function startRide(line: any, url: string, direction: string) {
 //   return match ? match[1] : ''
 // }
 
-// Thanks to clyzermk1 https://stackoverflow.com/questions/11120840/hash-string-into-rgb-color
-function djb2(str: string){
-  var hash = 5381;
-  for (var i = 0; i < str.length; i++) {
-    hash = ((hash << 5) + hash) + str.charCodeAt(i); /* hash * 33 + c */
-  }
-  return hash;
-}
 
-function hashStringToColor(str: string) {
-  var hash = djb2(str);
-  var r = (hash & 0xFF0000) >> 16;
-  var g = (hash & 0x00FF00) >> 8;
-  var b = hash & 0x0000FF;
-  return "rgb(" + r + "," + g + "," + b + ")"
-}
 
 async function openLine(slug: string) {
   const currentLine = lines.value.find(l => l.slug === slug)
@@ -74,12 +60,9 @@ onMounted(async () => {
 
 <template>
   <div class="container">
-    <template v-if="line">
-      <LineDisplay :line="line" @start="dir => startRide(line, url, dir)"/>
-    </template>
     <template v-if="lines">
       <div class="line-container">
-        <div v-for="line in lines" class="lines" :style="`background-color: ${hashStringToColor(line.title)};`" @click="openLine(line.slug)">
+        <div v-for="line in lines" class="lines" :style="`background-color: ${hashColor.hashStringToColor(line.title)};`" @click="openLine(line.slug)">
           <h5 class="line-abbr">{{ line.title.substring(0,1) }}</h5>
           <!-- <div class="additional-info">
             <h5>{{ line.title }}</h5>
@@ -88,6 +71,9 @@ onMounted(async () => {
           </div> -->
         </div>
       </div>
+    </template>
+    <template v-if="line">
+      <LineDisplay :line="line" @start="dir => startRide(line, url, dir)"/>
     </template>
   </div>
 </template>
@@ -114,10 +100,16 @@ onMounted(async () => {
 
 .lines {
   position: relative;
-  line-height: 1;
+  line-height: 1.2;
+  width: 1.5em;
+  height: 1.5em;
+  text-align: center;
   margin: 0;
-  border-radius: .5rem;
-  padding: .2rem .4rem;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  /* padding: .4em .3em .2em .3em; */
   cursor: pointer;
 }
 
