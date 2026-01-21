@@ -9,6 +9,12 @@ html {
 body {
   font-size: 18px;
   width: 100%;
+  --text-color: black;
+  color: var(--text-color);
+}
+
+button {
+  font-family: Brigade, sans-serif;
 }
 
 @media screen and (min-width: 1920px) {

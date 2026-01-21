@@ -163,8 +163,11 @@ export default defineBackground(() => {
     const promises: Promise<any>[] = []
     for (let i = 1; i <= pages; i++) {
       promises.push(
-        fetch(`http://api.are.na/v2/channels/${slug}/contents?per=${per}&page=${i}`)
-          .then(r => r.json())
+        Promise.resolve(() => {
+          setTimeout(() => {}, i * 30)
+        }).then(() => {
+          return fetch(`http://api.are.na/v2/channels/${slug}/contents?per=${per}&page=${i}`)
+        }).then(r => r.json())
       )
     }
     return await Promise.all(promises)

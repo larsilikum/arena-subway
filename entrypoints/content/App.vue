@@ -1,16 +1,23 @@
 <script lang="ts" setup>
-import background from '../background'
 import LineDisplay from '@/components/LineDisplay.vue'
 import hashColor from '@/utils/hashColor'
+import { PublicPath } from 'wxt/browser'
 
 const lines = ref<any[]>([])
 const line = ref<any>(null)
 const url = ref<string>('')
+const leaving = ref<boolean>(false)
 
 function startRide(line: any, url: string, direction: string) {
-  browser.runtime.sendMessage({ type: "start", value: { line, url, direction }})
+  leaving.value = true
+  setTimeout(() => {
+    browser.runtime.sendMessage({ type: "start", value: { line, url, direction }})
+  }, 5000)
 }
 
+function getImgUrl(src: PublicPath) {
+  return browser.runtime.getURL(src)
+}
 // function getDomainFromUrl(url: string): string {
 //   const regex = /^(?:https?:\/\/)?(?:www\.)?([^\/]+)/i
 //   const match = url.match(regex)
@@ -60,10 +67,10 @@ onMounted(async () => {
 
 <template>
   <div class="container">
-    <template v-if="lines">
+    <template v-if="lines && !leaving">
       <div class="line-container">
-        <div v-for="line in lines" class="lines" :style="`background-color: ${hashColor.hashStringToColor(line.title)};`" @click="openLine(line.slug)">
-          <h5 class="line-abbr">{{ line.title.substring(0,1) }}</h5>
+        <div v-for="l in lines" :class="{'lines': true, 'inactive': line && l.slug != line.slug }" :style="`background-color: ${hashColor.hashStringToColor(l.title).primary};`" @click="openLine(l.slug)">
+          <h5 class="line-abbr" :style="`color: ${hashColor.hashStringToColor(l.title).secondary};`">{{ l.title.substring(0,1) }}<span>{{ l.title.substring(1) }}</span></h5>
           <!-- <div class="additional-info">
             <h5>{{ line.title }}</h5>
             <p>{{ line.metadata?.description }}</p>
@@ -75,22 +82,29 @@ onMounted(async () => {
     <template v-if="line">
       <LineDisplay :line="line" @start="dir => startRide(line, url, dir)"/>
     </template>
+    <div :class="{'doors': true, 'closed': leaving}">
+      <img id="left-door" :src="getImgUrl('/svg/left_door.svg')" alt="">
+      <img id="right-door" :src="getImgUrl('/svg/right_door.svg')" alt="">
+    </div>
   </div>
 </template>
 
 <style scoped>
 .container {
   position: fixed;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
   top: 0;
   right: 0;
-  width: 100%;
+  width: 100dvw;
+  height: 100dvh;
   z-index: 999;
   pointer-events: all;
 }
 
 .line-container {
   width: 100%;
-  max-width: 100dvw;
+  max-width: calc(100% - .4rem);
   margin: .2rem;
   display: flex;
   gap: .2rem;
@@ -105,22 +119,83 @@ onMounted(async () => {
   height: 1.5em;
   text-align: center;
   margin: 0;
-  border-radius: 50%;
+  border-radius: .75em;
   display: flex;
   justify-content: center;
   align-items: center;
   /* padding: .4em .3em .2em .3em; */
   cursor: pointer;
+  transition: width .4s ease;
+  overflow: hidden;
+}
+
+.lines.inactive {
+  filter: grayscale();
 }
 
 h5 {
   line-height: 1;
   margin: 0;
+  white-space: nowrap;
 }
 
 .line-abbr {
   color: white;
   /* mix-blend-mode: difference; */
+}
+
+.line-abbr span {
+  display: none;
+}
+
+.lines:hover .line-abbr {
+  animation: marquee 1s alternate ease-in-out infinite;
+  transform-origin: 0 0;
+}
+
+.lines:hover span {
+  display: inline-block;
+}
+
+.lines:hover {
+  width: 5rem;
+  justify-content: start;
+  padding-inline: .3em;
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(-100% + 5rem));
+  }
+}
+
+.doors {
+  overflow: hidden;
+  display: flex;
+}
+
+.doors img {
+  width: 50%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 1s ease-in-out;
+}
+
+#left-door {
+  transform: translateX(-100%);
+  object-position: top right;
+}
+
+#right-door {
+  transform: translateX(100%);
+  object-position: top left;
+}
+
+.closed #left-door, .closed #right-door {
+  transform: translateX(0);
 }
 
 /* .lines:hover .line-abbr {
