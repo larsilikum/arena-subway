@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+  import LineDisplayStation from './LineDisplayStation.vue'
   const props = defineProps(['line'])
   const emit = defineEmits<{
     (e: 'start', value: string): void
@@ -20,9 +21,9 @@
 
 <template>
   <div class="line">
-    <h2><span class="line-abbr"> {{ line.title.substring(0, 1) }}</span>{{ line.title }}</h2>
+    <h2><span class="line-abbr">{{ line.title.substring(0, 1) }}</span>&nbsp;&ThickSpace;{{ line.title }}</h2>
     <div class="metadata">
-      <p v-if="line.metadata" class="description">{{ line.metadata.description }}</p>
+      <p v-if="line.metadata && line.metadata.description != ''" class="description">{{ line.metadata.description }}</p>
       <div class="button-container">
         <button @click="emit('start', 'forwards')">-> {{ filteredContents[filteredContents.length - 1].title }}</button>
         <button @click="emit('start', 'backwards')">-> {{ filteredContents[0].title }}</button>
@@ -30,12 +31,9 @@
     </div>
     <div class="stations">
       <div class="stations-container">
-        <div id="stations-line"></div>
+        <hr id="stations-line"/>
         <template v-for="station in filteredContents">
-          <div class="station">
-            <h5>{{ station.title }}</h5>
-            <div :class="{'indicator': true, 'active': station.source?.url === url}"></div>
-          </div>
+          <LineDisplayStation :station="station" :url="url" :color="color"/>
         </template>
       </div>
     </div>
@@ -53,7 +51,8 @@
 }
 
 h2 {
-  margin-top: 2rem;
+  margin: .2em 0;
+  line-height: 1;
 }
 
 .line-abbr {
@@ -73,11 +72,13 @@ h2 {
 
 #stations-line {
   height: .2rem;
-  width: calc(100% - 4.5em);
+  width: calc(100% - .5em);
   border-radius: .1rem;
   background-color: v-bind(color);
   position: absolute;
   bottom: .4rem;
+  border: none;
+  margin: 0;
   /* z-index: 99998; */
 }
 
@@ -86,6 +87,7 @@ h2 {
   display: flex;
   align-items: end;
   grid-column: span 2;
+  height: 15em;
 }
 
 .stations-container {
@@ -94,32 +96,5 @@ h2 {
   align-self: bottom;
   align-items: end;
   position: relative;
-}
-
-.station {
-  width: 5em;
-  overflow: visible;
-  position: relative;
-}
-
-.station h5 {
-  margin: 0;
-  transform-origin: 0 50%;
-  transform: rotate(-30deg) translate(1em, 1em);
-  /* white-space: nowrap; */
-  width: 20em;
-  font-weight: normal;
-  line-height: 0.9;
-}
-
-.station .indicator {
-  background: radial-gradient(gray, v-bind(color));
-  width: 1em;
-  height: 1em;
-  border-radius: 50%;
-}
-
-.station .indicator.active {
-  background: radial-gradient(yellow, v-bind(color));
 }
 </style>

@@ -77,8 +77,7 @@ export default defineBackground(() => {
   }
 
   const fetchCurrentStationLines = (activeTabId: number) => {
-    fetch(`http://api.are.na/v2/blocks/${stations[lineIndex].id}/channels`)
-      .then(r => r.json())
+    getBlockChannels(stations[lineIndex].id)
       .then(d => {
         console.log(d)
         browser.tabs.sendMessage(activeTabId, { type: "channelsReceived", channels: d.channels })
@@ -86,8 +85,7 @@ export default defineBackground(() => {
   }
 
   const fetchStationLinesByTitle = (message: Message, activeTabId: number) => {
-    fetch(`http://api.are.na/v2/search/blocks?q=${message.value.title}&per=100`)
-      .then(r => r.json())
+    getSearchBlocks(message.value.title)
       .then(d => {
         const filtered = d.blocks.filter((block: any) => block.source?.url === message.value.url)
         console.log(d, message.value.url)
@@ -96,10 +94,9 @@ export default defineBackground(() => {
         if (filtered.length) {
           const promises: Promise<any>[] = []
           for(const block of filtered) {
-            promises.push(fetch(`http://api.are.na/v2/blocks/${block.id}/channels`)
-                .then(r => r.json())
+            promises.push(
+              getBlockChannels(block.id)
                 .then(d => {
-                  console.log(d)
                   browser.tabs.sendMessage(activeTabId, { type: "channelsReceived", channels: d.channels })
                 })
             )
@@ -112,9 +109,56 @@ export default defineBackground(() => {
       })
   }
 
-  function fetchLine(slug: string, length: number, sendResponse: Function) {
+  function fetchLine(slug: string, channelLength: number, sendResponse: Function) {
+    getChannelContents(slug, channelLength).then(d => sendResponse(d))
+  }
+
+  // getters
+  async function getSearchBlocks(searchTerm: string) {
+    const slugifiedTerm = encodeURIComponent(searchTerm)
+    const blocks: any = await storage.getItem(`local:block-search-${slugifiedTerm}`)
+    if (blocks) return blocks.data
+    const fetched = await fetchSearchBlocks(searchTerm)
+    await storage.setItem(`local:block-search-${slugifiedTerm}`, { data: fetched })
+    return fetched
+  }
+
+  async function getBlockChannels(id: number) {
+    const block = await storage.getItem(`local:block-channels-${id}`)
+    if (block) return block
+    const fetched = await fetchBlockChannels(id)
+    await storage.setItem(`local:block-channels-${id}`, fetched)
+    return fetched
+  }
+
+  async function getChannelContents(slug: string, channelLength: number) {
+    const channel: any = await storage.getItem(`local:channel-contents-${slug}`)
+    if (channel) return channel.data
+    const fetched = await fetchChannelContents(slug, channelLength)
+    try {
+      await storage.setItem(`local:channel-contents-${slug}`, { data: fetched })
+    }
+    catch (error) {
+      console.error(error)
+    }
+    return fetched
+  }
+
+
+
+  // api calls
+  async function fetchSearchBlocks(searchTerm: string) {
+    return await fetch(`http://api.are.na/v2/search/blocks?q=${searchTerm}&per=100`).then(r => r.json())
+  }
+
+  async function fetchBlockChannels(id: number) {
+    const blockChannels = await fetch(`http://api.are.na/v2/blocks/${id}/channels`).then(r => r.json())
+    return blockChannels
+  }
+
+  async function fetchChannelContents(slug: string, channelLength: number) {
     const per = 30
-    const pages = Math.ceil(length / per)
+    const pages = Math.ceil(channelLength / per)
     console.log(`fetching ${pages} pages`)
     const promises: Promise<any>[] = []
     for (let i = 1; i <= pages; i++) {
@@ -123,10 +167,9 @@ export default defineBackground(() => {
           .then(r => r.json())
       )
     }
-    Promise.all(promises)
+    return await Promise.all(promises)
       .then(d => {
-        console.log(d)
-        sendResponse(d.map(r => r.contents).flat())
+        return d.map(r => r.contents).flat()
       })
   }
 })

@@ -83,7 +83,7 @@ onMounted(async () => {
   position: fixed;
   top: 0;
   right: 0;
-  width: 100dvw;
+  width: 100%;
   z-index: 999;
   pointer-events: all;
 }

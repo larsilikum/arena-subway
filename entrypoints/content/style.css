@@ -3,10 +3,12 @@ html {
   z-index: 99999;
   pointer-events: none;
   font-family: Brigade, sans-serif;
+  width: 100%;
 }
 
 body {
   font-size: 18px;
+  width: 100%;
 }
 
 @media screen and (min-width: 1920px) {
