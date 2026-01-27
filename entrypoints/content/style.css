@@ -2,21 +2,29 @@ html {
   position: fixed;
   z-index: 99999;
   pointer-events: none;
-  font-family: Brigade, sans-serif;
+  font-family: system-ui, sans-serif;
   width: 100%;
+  color-scheme: light dark;
+}
+
+html:has(#background.leaving), html:has(#background.arriving) {
+  transform: translateX(100%);
+  transition: transform 2s ease-in;
+  transition-delay: 2s;
 }
 
 body {
-  font-size: 18px;
+  /* font-size: 18px; */
   width: 100%;
-  --text-color: black;
+  /* --text-color: #df5ffd; */
+  --text-color: FieldText;
   color: var(--text-color);
 }
 
 button {
-  font-family: Brigade, sans-serif;
+  font-family: ui-sans-serif, system-ui, sans-serif;
 }
-
+/* 
 @media screen and (min-width: 1920px) {
   body {
     font-size: 20px;
@@ -26,4 +34,4 @@ button {
   body {
     font-size: 12px;
   }
-}
+} */

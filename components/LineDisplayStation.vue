@@ -3,9 +3,13 @@ defineProps<{
   station: any,
   url: string,
   color: string,
+  index: string | number,
+  stationIndex: number,
+  nextStationIndex: number,
+  commuting: boolean
 }>()
 
-const stationTitle = ref<HTMLElement | null>(null)
+// const stationTitle = ref<HTMLElement | null>(null)
 // const height = ref<string>('4em')
 // onMounted(() => {
 //   nextTick(() => {
@@ -30,7 +34,7 @@ const stationTitle = ref<HTMLElement | null>(null)
 <template>
   <div class="station">
     <h5 ref="stationTitle">{{ station.title }}</h5>
-    <div :class="{'indicator': true, 'active': station.source?.url === url}"></div>
+    <div :class="{'indicator': true, 'active': stationIndex === index && nextStationIndex < 0, 'arriving-at': nextStationIndex === index && commuting}"></div>
   </div>
 </template>
 
@@ -51,14 +55,14 @@ const stationTitle = ref<HTMLElement | null>(null)
   /* font-family: BrigadeCondensed, sans-serif;
   letter-spacing: .02em; */
   display: block;
-  font-size: 1rem;
+  font-size: medium;
   margin: 0;
   transform-origin: 0 100%;
   transform: rotate(-30deg) translate(.5em, .2em);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 20em;
+  max-width: 10em;
   width: min-content;
   font-weight: normal;
   line-height: 0.9;
@@ -73,5 +77,18 @@ const stationTitle = ref<HTMLElement | null>(null)
 
 .station .indicator.active {
   background: radial-gradient(yellow, v-bind(color) 90%);
+}
+
+.station .indicator.arriving-at {
+  animation: blinking .5s ease-in-out alternate infinite;
+}
+
+@keyframes blinking {
+  from {
+    background: radial-gradient(v-bind(color));
+  }
+  to {
+    background: radial-gradient(yellow, v-bind(color) 90%);
+  }
 }
 </style>

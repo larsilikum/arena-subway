@@ -25,6 +25,7 @@ function defineOverlay(ctx: ContentScriptContext) {
     position: "modal",
     zIndex: 999,
     onMount(container, _shadow, shadowHost) {
+      storage.setItem('local:commuting', false)
       // Load custom font. Don't forget add font to web accessible resources in wxt.config.ts
       const brigadeRegular = browser.runtime.getURL("/fonts/Fundamental_Brigade.ttf")
       const brigadeLight = browser.runtime.getURL("/fonts/Fundamental_Brigade_Schlank.ttf")
@@ -63,6 +64,20 @@ function defineOverlay(ctx: ContentScriptContext) {
               `
       // append style element to head
       document.head.appendChild(fontStyle)
+
+      const injectedCssUrl = browser.runtime.getURL('/css/commuting.css')
+      const injectedCssLink = document.createElement('link')
+      injectedCssLink.href = injectedCssUrl
+      injectedCssLink.rel = 'stylesheet'
+
+      const unwatch = storage.watch<boolean | null>('local:commuting', async (newVal: (boolean | null), _oldVal) => {
+        if (newVal && !(await storage.getItem('local:instantCommute'))) {
+          document.head.appendChild(injectedCssLink)
+        } else {
+          document.head.removeChild(injectedCssLink)
+        }
+      })
+
       const app = createApp(App)
       app.mount(container)
       shadowHost.style.pointerEvents = "none"

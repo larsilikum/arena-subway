@@ -2,10 +2,10 @@ import { Message } from "@/types"
 
 export default defineBackground(() => {
   let lineIndex = 0
-  let isCommuting = false
   let stations: any[] = []
 
   browser.runtime.onMessage.addListener(handleMessages)
+  storage.setItem('local:commuting', false)
 
   function handleMessages(message: Message, _sender: any, sendResponse: Function) {
     switch (message.type) {
@@ -24,9 +24,10 @@ export default defineBackground(() => {
   }
 
   async function startLine(line: any, url: string, direction: string) {
+    // set currentLine in store for content script to diplay while commuting
+    await storage.setItem('local:currentLine', line)
     // i know this is ugly, but i havent figured out a way to have the lineIndex stay the same for all requests except like this for now
-    lineIndex = -1 
-    isCommuting = true
+    lineIndex = 0
     // only use Links (no images, pdfs etc.)
     stations = line.contents.filter((content: any) => content.class === 'Link')
     // our departure station based on the current url
@@ -40,22 +41,44 @@ export default defineBackground(() => {
     } else {
       stations = stations.slice(0, stationIndex).reverse()
     }
+
+    const instantCommute:boolean = await storage.getItem<boolean>('local:instantCommute') || false
+
+    const commutingTimeSeconds: number = !instantCommute ? await storage.getItem('local:commutingTime') || 10 : 0
+    const restingTimeSeconds: number = await storage.getItem('local:restingTime') || 15
+    const totalTime = (commutingTimeSeconds + restingTimeSeconds) * 1000
+
     // start the commute
-    timeOutLoopArray(stations.length, 15000, async () => {
+    timeOutLoopArray(stations.length, totalTime, commutingTimeSeconds * 1000, async (i: number) => {
       const query = await browser.tabs.query({active: true})
       const activeTab = query[0]
-      if (activeTab.id) browser.tabs.update(activeTab.id, { url: stations[lineIndex].source.url })
+      if (activeTab.id) browser.tabs.update(activeTab.id, { url: stations[i].source.url })
     })
   }
 
-  async function timeOutLoopArray(length: number, delay: number, f: Function) {
+  async function timeOutLoopArray(length: number, delay: number, commutingTime: number, f: Function) {
     lineIndex++
-    console.log(lineIndex)
+    console.log(commutingTime)
     if (lineIndex < length) {
-      await f(lineIndex)
-      setTimeout(() => timeOutLoopArray(length, delay, f), delay)
+      if(lineIndex === 1) {
+        setTimeout(async () => {
+          // const isCommuting: boolean = await storage.getItem<boolean | null>('local:commuting') || false 
+          // if (!isCommuting) return
+          await f(lineIndex)
+          setTimeout(() => timeOutLoopArray(length, delay, commutingTime, f), delay)
+        }, commutingTime)
+      } else {
+        // const isCommuting: boolean = await storage.getItem<boolean | null>('local:commuting') || false 
+        // if (!isCommuting) return
+        await f(lineIndex)
+        setTimeout(() => timeOutLoopArray(length, delay, commutingTime, f), delay)
+      }
     } else {
-      setTimeout(() => isCommuting = false, delay)
+      setTimeout(async () => {
+        await storage.setItem('local:commuting', false)
+        await storage.setItem('local:currentLine', null)
+      }, delay)
+
     }
   }
   
@@ -63,7 +86,7 @@ export default defineBackground(() => {
     const query = await browser.tabs.query({active: true})
     const activeTab = query[0]
     const firstPromises: any[]= []
-    if (isCommuting && activeTab.id) {
+    if (await storage.getItem('local:commuting') && activeTab.id) {
       firstPromises.push(
         fetchCurrentStationLines(activeTab.id)
       )

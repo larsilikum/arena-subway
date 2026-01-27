@@ -14,7 +14,7 @@ hashStringToColor(str: string) {
   var g = (hash & 0x00FF00) >> 8;
   var b = hash & 0x0000FF;
   let brightness = (0.2126*r + 0.7152*g + 0.0722*b)
-  const secColor = brightness > 128 ? 'var(--text-color)' : 'white'
+  const secColor = brightness > 128 ? 'black' : 'white'
   return {
     primary: "rgb(" + r + "," + g + "," + b + ")",
     secondary: secColor,
