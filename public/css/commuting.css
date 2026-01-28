@@ -11,27 +11,27 @@ body > div * {
   transition: transform 2s cubic-bezier(0.5, 0, 1, 0.5) !important;
 }
 
-body > div > *:nth-child(3n) {
+body > *:nth-child(3n) {
   transform: translateX(-100dvw) !important;
 }
 
-body > div > * > *:nth-child(3) {
+body > * > *:nth-child(3) {
   transform: translateX(-10dvw) !important;
 }
 
-body > div > *:nth-child(3n + 1) {
+body > *:nth-child(3n + 1) {
   transform: translateX(-150dvw) !important;
 }
 
-body > div > * > *:nth-child(2) {
+body > * > *:nth-child(2) {
   transform: translateX(-20dvw) !important;
 }
 
-body > div > *:nth-child(3n + 2) {
+body > *:nth-child(3n + 2) {
   transform: translateX(-200dvw) !important;
 }
 
-body > div > * > *:nth-child(1) {
+body > * > *:nth-child(1) {
   transform: translateX(-30dvw) !important;
 }
 

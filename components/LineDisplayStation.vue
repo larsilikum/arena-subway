@@ -11,26 +11,6 @@ const props = defineProps<{
 
 const stationEl = ref<HTMLElement | null>(null)
 
-// const stationTitle = ref<HTMLElement | null>(null)
-// const height = ref<string>('4em')
-// onMounted(() => {
-//   nextTick(() => {
-//     setTimeout(() => {
-//       // wait for a bit because else the first titles arent rendered correctly yet
-//       const elementHeight = stationTitle.value?.clientHeight || 18
-//       // sin 30 deg should be 0.5
-//       console.log(elementHeight)
-//       height.value = `calc(${elementHeight * 2}px + 1em)`
-//     }, 300)
-//   })
-// })
-  
-// const height = computed<string>(() => {
-//   if (!stationTitle.value) return '5em'
-//   const elementHeight = stationTitle.value.clientHeight
-//   // sin 30 deg should be 0.5
-//   return `calc(${elementHeight * 2}px + 1em)`
-// })
 onMounted(() => {
   if (props.stationIndex === props.index) {
     stationEl.value?.scrollIntoView({behavior: 'smooth', block: 'center', inline: 'center'})
@@ -40,7 +20,7 @@ onMounted(() => {
 
 <template>
   <div class="station" ref="stationEl">
-    <h5 ref="stationTitle">{{ station.title }}</h5>
+    <h5 ref="stationTitle">{{ station.generated_title }}</h5>
     <div :class="{'indicator': true, 'active': stationIndex === index && nextStationIndex < 0, 'arriving-at': nextStationIndex === index && commuting}"></div>
   </div>
 </template>

@@ -1,5 +1,6 @@
 <script lang="ts" setup>
   import LineDisplay from '@/components/LineDisplay.vue'
+  import { isSameRoute } from '@/utils/compareRoute'
   import hashColor from '@/utils/hashColor'
   import { PublicPath } from 'wxt/browser'
 
@@ -10,19 +11,27 @@
       
   // storage values
   const restingTime = ref<number>(10)
-  const commuting = ref<boolean>(false)
+  const commuting = ref(false)
+
+  // ui refs
+  const lineOpen = ref(false)
+  const headerOpen = ref(true)
   
   // animation refs  
-  const leaving = ref<boolean>(false)
-  const arriving = ref<boolean>(false)
+  const leaving = ref(false)
+  const arriving = ref(false)
   
-  // indicator light refs (LineDisplayStation)
-  const stationIndex = ref<number>(-1)
+  // indicator light values (LineDisplayStation)
+  const stationIndex = computed<number>(() => {
+    return line.value?.contents?.findIndex((s: any) => isSameRoute(s.source?.url, window.location.href)) || -1
+  })
   const nextStationIndex = ref<number>(-1)
   const nextStation = ref<any>(null)
-
-  async function startRide(line: any, url: string, direction: string) {
-    await browser.runtime.sendMessage({ type: "start", value: { line, url, direction }})
+  
+  // =========================== commuting functions ====================================
+  async function startRide(line: any, direction: string) {
+    await browser.runtime.sendMessage({ type: "start", value: { line, url: window.location.href, direction }})
+    commuting.value = true
     await rideAnimations(line, direction)
   }
 
@@ -32,14 +41,21 @@
   
   async function rideAnimations(line: any, direction: string) {
     if(!commuting.value) return
+    
     leaving.value = true
+
+    // set nextStation to trigger blinking light in LineDisplayStation
     nextStationIndex.value = direction === 'forwards' ? stationIndex.value + 1 : stationIndex.value - 1
+    console.log(nextStationIndex.value, stationIndex.value)
     nextStation.value = line.contents[nextStationIndex.value]
     
+    // if fun mode is enabled wait 2s for closing doors
     const funMode = await storage.getItem('local:funMode')
     setTimeout(() => {
       storage.setItem('local:leaving', true)
     }, funMode ? 2000 : 0)
+
+    // if fun mode is enabled trigger animations for arriving after the correct amount of time
     if (funMode) {
       const commutingTime = await storage.getItem<number | null>('local:commutingTime') || 10
       setTimeout(() => {
@@ -49,26 +65,30 @@
     }
   }
 
+  // ============================================ ui functions ======================================
   async function openLine(slug: string) {
-    
+    lineOpen.value = !lineOpen.value
+
     if (line.value?.slug === slug) return
 
     const currentLine = lines.value.find(l => l.slug === slug)
     if (!currentLine) {
       console.error("Couldnt find line with slug:", slug)
       return
-    } 
+    }
+
     line.value = currentLine
+
     if (currentLine.contents.length != currentLine.length) {
-      line.value.contents = (await browser.runtime.sendMessage({ type: "getLine", value: {
+      line.value.contents = (await browser.runtime.sendMessage({ type: "getLineContents", value: {
         slug,
         length: currentLine.length,
       } }))
     }
     line.value.contents = line.value.contents.filter((s: any) => s.class === 'Link')
-    stationIndex.value = line.value.contents.findIndex((s: any) => s.source.url === url.value)
+    console.log(line.value)
   }
-
+  // departure timer
   function descendTime() {
     setTimeout(() => {
       if(restingTime.value === 0) return
@@ -76,14 +96,24 @@
       descendTime()
     }, 1000)
   }
+  // header display mode functionality
+  async function changeHeaderMode(open: boolean) {
+    headerOpen.value = open
+    await storage.setItem('local:headerOpen', open)
+  }
+
+  // ======================================= Mounted ===========================================
 
   onMounted(async () => {
     // get commuting values from store
     commuting.value = await storage.getItem('local:commuting') || false
     line.value = await storage.getItem('local:currentLine')
     restingTime.value = await storage.getItem<number | null>('local:restingTime') || 10
-
     const direction = await storage.getItem<string | null>('local:direction') || null
+
+    // get ui values from store
+    const hOVal = await storage.getItem<boolean | null>('local:headerOpen')
+    headerOpen.value = hOVal !== null ? hOVal : true 
 
     // search for block with this title in are.na
     const title = document.title
@@ -100,6 +130,7 @@
     // when receiving stations from call add them to lines array
     browser.runtime.onMessage.addListener((message) => {
       if (message.type === "channelsReceived") {
+        console.log("received channels", message.channels)
         lines.value = [...(lines.value || []), ...message.channels]
         lines.value = [...new Set(lines.value)]
       }
@@ -147,20 +178,22 @@
       <img id="right-door" :src="getImgUrl('/svg/subway-right-door-tr.png')" alt="">
       <img id="interior" :src="getImgUrl('/svg/subway-interior-tr+fg.png')" alt="">
     </div> -->
-    <template v-if="line && ((!commuting && !leaving) || (commuting && leaving))">
-      <LineDisplay :line="line" @start="dir => startRide(line, url, dir)" @close="() => line = null" :station-index="stationIndex" :commuting="commuting" :next-station-index="nextStationIndex"/>
+    <template v-if="lineOpen || (line && lineOpen && ((!commuting && !leaving)) || (commuting && leaving))">
+      <LineDisplay :line="line" @start="dir => startRide(line, dir)" @close="() => lineOpen = false" :station-index="stationIndex" :commuting="commuting" :next-station-index="nextStationIndex"/>
     </template>
-    <header>
+    <header :class="{'closed': !headerOpen}">
       <button v-if="commuting && (!leaving && !arriving)" @click="stopRide">leave</button>
-      <p id="channel-label">channels:</p>
-      <template v-if="lines && !leaving && !arriving">
+      <p v-if="headerOpen" id="channel-label">channels:</p>
+      <h5 v-if="!headerOpen" id="lines-amount" class="lines" @click="changeHeaderMode(true)">{{ lines.length }}</h5>
+      <template v-if="lines && headerOpen">
         <div class="lines-container">
-          <div v-for="l in lines" :class="{'lines': true, 'inactive': line && l.slug != line.slug }" :style="`background-color: ${hashColor.hashStringToColor(l.title).primary};`" @click="openLine(l.slug)">
+          <div v-for="l in lines" :class="{'lines': true, 'inactive': line && l.slug != line.slug && lineOpen }" :style="`background-color: ${hashColor.hashStringToColor(l.title).primary};`" @click="openLine(l.slug)">
             <h5 class="line-abbr" :style="`color: ${hashColor.hashStringToColor(l.title).secondary};`">{{ l.title.substring(0,1) }}<span>{{ l.title.substring(1) }}</span></h5>
           </div>
         </div>
       </template>
-      <p v-if="commuting && (!leaving && !arriving)" id="departure-time">departing in <span>{{ Math.floor(restingTime/60) }}:{{ restingTime%60 }}</span></p>
+      <p v-if="commuting && (!leaving && !arriving)" id="departure-time"><span v-if="headerOpen">departing in </span><span>{{ Math.floor(restingTime/60) }}:{{ restingTime%60 }}</span></p>
+      <button v-if="headerOpen" id="close-all" @click="changeHeaderMode(false)">x</button>
     </header>
   </div>
 </template>
@@ -168,9 +201,10 @@
 <style scoped>
 .container {
   position: fixed;
-  top: 0;
+  bottom: 0;
   right: 0;
   width: 100%;
+  height: auto;
   /* height: 100dvh; */
   z-index: 999;
   pointer-events: all;
@@ -220,18 +254,39 @@
 
 header {
   position: absolute;
-  top: 0;
+  bottom: 0;
   left: 0;
-  width: calc(100dvw - .4rem);
-  padding: 0 .2rem;
+  width: calc(100% - .8rem);
+  padding: 0 .4rem;
   display: grid;
-  grid-template-columns: min-content min-content auto max-content;
+  grid-template-columns: min-content min-content auto max-content min-content;
   gap: .4rem;
   background-color: Field;
   color: FieldText;
   height: 32px;
   font-size: small;
   align-items: center;
+  transition: width .5s ease-in-out;
+}
+
+header.closed {
+  /* left: 50%;
+  transform: translateX(-50%); */
+  grid-template-columns: repeat(3, auto);
+  width: 2em;
+  min-width: min-content;
+  border-top-right-radius: 16px;
+}
+
+#lines-amount {
+  background-color: Highlight;
+  cursor: pointer;
+  grid-column: 2 / 3;
+}
+
+#lines-amount:hover {
+  width: 1.5em;
+  padding-inline: 0;
 }
 
 header p {
@@ -245,6 +300,10 @@ header p {
 
 #departure-time {
   justify-self: end;
+}
+
+#close-all {
+  grid-column: 5 / 6;
 }
 
 .lines-container {
@@ -262,6 +321,7 @@ header p {
 .lines {
   position: relative;
   line-height: 1.2;
+  font-size: small;
   width: 1.5em;
   height: 1.5em;
   text-align: center;

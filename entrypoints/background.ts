@@ -1,4 +1,5 @@
-import { Message } from "@/types"
+import { Message, ArenaBlock, ArenaChannel, Station } from "@/types"
+import { isSameRoute } from "@/utils/compareRoute"
 
 export default defineBackground(() => {
   let lineIndex = 0
@@ -7,16 +8,18 @@ export default defineBackground(() => {
   browser.runtime.onMessage.addListener(handleMessages)
   storage.setItem('local:commuting', false)
 
+  // ==================================== MESSAGE HANDLER ===============================================
+
   function handleMessages(message: Message, _sender: any, sendResponse: Function) {
     switch (message.type) {
       case "start":
         startLine(message.value.line, message.value.url, message.value.direction)
         break
       case "fetchLines":
-        fetchLines(message)
+        getLines(message)
         break
-      case "getLine":
-        fetchLine(message.value.slug, message.value.length, sendResponse)
+      case "getLineContents":
+        getLineContentsHandler(message.value.slug, message.value.length, sendResponse)
         return true
       default:
         console.error("unknown message type")
@@ -28,88 +31,110 @@ export default defineBackground(() => {
     await storage.setItem('local:currentLine', line)
     await storage.setItem('local:direction', direction)
     await storage.setItem('local:commuting', true)
+
     // i know this is ugly, but i havent figured out a way to have the lineIndex stay the same for all requests except like this for now
     lineIndex = 0
+
     // only use Links (no images, pdfs etc.)
     stations = line.contents.filter((content: any) => content.class === 'Link')
+
     // our departure station based on the current url
-    const stationIndex = stations.findIndex(station => station.source?.url === url)
+    const stationIndex = stations.findIndex(station => isSameRoute(station.source?.url, url))
     if(stationIndex < 0) {
-      console.error("Couldnt find station with this url in line")
+      console.error("Couldnt find station with this url in line", url)
     }
+
     // depending on which direction we're going we cut the rest of the array and reverse it for going the other direction
     if (direction === 'forwards') {
       stations = stations.slice(stationIndex)
     } else {
-      stations = stations.slice(0, stationIndex).reverse()
+      stations = stations.slice(0, stationIndex + 1).reverse()
     }
 
-    const funMode: boolean = await storage.getItem<boolean>('local:funMode') || false
-
-    const commutingTimeSeconds: number = funMode ? await storage.getItem('local:commutingTime') || 10 : 2
-    const restingTimeSeconds: number = await storage.getItem('local:restingTime') || 15
-    const totalTime = (commutingTimeSeconds + restingTimeSeconds) * 1000
-
     // start the commute
-    timeOutLoopArray(stations.length, totalTime, commutingTimeSeconds * 1000, async (i: number) => {
+    timeOutLoopArray(stations.length, async (i: number) => {
       const query = await browser.tabs.query({active: true})
       const activeTab = query[0]
       if (activeTab.id) browser.tabs.update(activeTab.id, { url: stations[i].source.url })
     })
   }
 
-  async function timeOutLoopArray(length: number, delay: number, commutingTime: number, f: Function) {
+  async function timeOutLoopArray(length: number, f: Function) {
     lineIndex++
     // if leave button was pressed or we stopped for another reason -> stop loop
     const isCommuting: boolean = await storage.getItem<boolean | null>('local:commuting') || false 
-    console.log(isCommuting)
-    if (lineIndex < length && isCommuting) {
 
+    // calculate new Values for timeout in case popup sliders have been changed
+    const funMode: boolean = await storage.getItem<boolean>('local:funMode') || false
+
+    const commutingTime: number = (funMode ? await storage.getItem<number | null>('local:commutingTime') || 10 : 2) * 1000
+    const restingTime: number = (await storage.getItem<number | null>('local:restingTime') || 15) * 1000
+    const delay = restingTime + commutingTime
+
+    if (lineIndex < length && isCommuting) {
       // the first station has to wait for the leaving animation to finish then navigate away
       if(lineIndex === 1) {
         setTimeout(async () => {
           await f(lineIndex)
-          setTimeout(() => timeOutLoopArray(length, delay, commutingTime, f), delay)
+          setTimeout(() => timeOutLoopArray(length, f), delay)
         }, commutingTime)
       } else {
         await f(lineIndex)
-        setTimeout(() => timeOutLoopArray(length, delay, commutingTime, f), delay)
+        setTimeout(() => timeOutLoopArray(length, f), delay)
       }
     } else {
       await storage.setItem('local:commuting', false)
       await storage.setItem('local:currentLine', null)
+      lineIndex = 0
     }
   }
-  
-  async function fetchLines(message: Message) {
+
+  // get blocks from arena channel and send response via messages
+  function getLineContentsHandler(slug: string, channelLength: number, sendResponse: Function) {
+    getChannelContents(slug, channelLength).then(d => sendResponse(d))
+  }
+
+  // =========================================== DATA RETRIEVAL ============================================
+  // get arena channels for a site based on their title and if we're commuting also the channels for the
+  // block in the current channel
+  async function getLines(message: Message) {
     const query = await browser.tabs.query({active: true})
     const activeTab = query[0]
     const firstPromises: any[]= []
+    const station = await getStationByUrl(message.value.url)
+    console.log(station)
     if (await storage.getItem('local:commuting') && activeTab.id) {
       firstPromises.push(
-        fetchCurrentStationLines(activeTab.id)
+        getCurrentStationLines(activeTab.id)
       )
+    } else if (station && activeTab.id) {
+      sendStoredStationLines(activeTab.id, station.channels)
     }
-    if (activeTab.id) {
+    if (activeTab.id && !station) {
       firstPromises.push(
-        fetchStationLinesByTitle(message, activeTab.id)
+        getStationLinesByTitle(message, activeTab.id)
       )
     }
-    Promise.allSettled(firstPromises)
+    if (firstPromises.length) Promise.allSettled(firstPromises)
   }
 
-  const fetchCurrentStationLines = (activeTabId: number) => {
-    getBlockChannels(stations[lineIndex].id)
+  function sendStoredStationLines(activeTabId: number, channels: ArenaChannel[]) {
+    browser.tabs.sendMessage(activeTabId, { type: "channelsReceived", channels})
+  }
+
+  // get channels of block from current channel
+  function getCurrentStationLines(activeTabId: number) {
+    getBlockChannels(stations[lineIndex])
       .then(d => {
-        console.log(d)
-        browser.tabs.sendMessage(activeTabId, { type: "channelsReceived", channels: d.channels })
+        browser.tabs.sendMessage(activeTabId, { type: "channelsReceived", channels: d })
       })
   }
 
-  const fetchStationLinesByTitle = (message: Message, activeTabId: number) => {
-    getSearchBlocks(message.value.title)
+  // get channels based on title of page
+  function getStationLinesByTitle(message: Message, activeTabId: number) {
+    fetchSearchBlocks(message.value.title)
       .then(d => {
-        const filtered = d.blocks.filter((block: any) => block.source?.url === message.value.url)
+        const filtered: ArenaBlock[] = d.blocks.filter((block: ArenaBlock) => block.source && isSameRoute(block.source.url, message.value.url))
         console.log(d, message.value.url)
         console.log("filtered blocks count: ", filtered.length)
         
@@ -117,13 +142,13 @@ export default defineBackground(() => {
           const promises: Promise<any>[] = []
           for(const block of filtered) {
             promises.push(
-              getBlockChannels(block.id)
-                .then(d => {
-                  browser.tabs.sendMessage(activeTabId, { type: "channelsReceived", channels: d.channels })
+              getBlockChannels(block)
+                .then((d) => {
+                  browser.tabs.sendMessage(activeTabId, { type: "channelsReceived", channels: d })
                 })
             )
           }
-          Promise.allSettled(promises)
+          Promise.allSettled(promises).catch(error => console.error(error))
         }
       })
       .catch(e => {
@@ -131,26 +156,14 @@ export default defineBackground(() => {
       })
   }
 
-  function fetchLine(slug: string, channelLength: number, sendResponse: Function) {
-    getChannelContents(slug, channelLength).then(d => sendResponse(d))
-  }
-
-  // getters
-  async function getSearchBlocks(searchTerm: string) {
-    const slugifiedTerm = encodeURIComponent(searchTerm)
-    const blocks: any = await storage.getItem(`local:block-search-${slugifiedTerm}`)
-    if (blocks) return blocks.data
-    const fetched = await fetchSearchBlocks(searchTerm)
-    await storage.setItem(`local:block-search-${slugifiedTerm}`, { data: fetched })
-    return fetched
-  }
-
-  async function getBlockChannels(id: number) {
-    const block = await storage.getItem(`local:block-channels-${id}`)
-    if (block) return block
-    const fetched = await fetchBlockChannels(id)
-    await storage.setItem(`local:block-channels-${id}`, fetched)
-    return fetched
+  async function getBlockChannels(block: ArenaBlock): Promise<ArenaChannel[]> {
+    const b = await getStationById(block.id)
+    if (b) return b.channels
+    const fetched = await fetchBlockChannels(block.id)
+    const newBlock = block
+    newBlock.channels = fetched.channels
+    await addBlockToStorage(newBlock)
+    return fetched.channels
   }
 
   async function getChannelContents(slug: string, channelLength: number) {
@@ -166,9 +179,7 @@ export default defineBackground(() => {
     return fetched
   }
 
-
-
-  // api calls
+  // =========================================== DATA FETCHING ===========================================
   async function fetchSearchBlocks(searchTerm: string) {
     return await fetch(`http://api.are.na/v2/search/blocks?q=${searchTerm}&per=100`).then(r => r.json())
   }
@@ -198,3 +209,59 @@ export default defineBackground(() => {
       })
   }
 })
+
+// ========================================== STORAGE HANDLER =====================================
+
+async function getStationById(id: number) {
+  const blocks = await storage.getItem<Station[]>('local:stations')
+  if (!blocks) return
+  let block = blocks.find(b => b.id === id)
+  if (block) return block
+  block = blocks.find(b => b.searched_ids.some(i => i === id))
+  return block
+}
+
+async function getStationByUrl(url: string) {
+  const blocks = await storage.getItem<Station[]>('local:stations')
+  console.log(blocks, url)
+  return blocks?.find(b => isSameRoute(b.source.url, url))
+}
+
+async function addBlockToStorage(block: ArenaBlock) {
+  let station: Station = blockToStation(block)
+  const stations = await storage.getItem<Station[]>('local:stations')
+  if (stations?.length) {
+    // if this url has already been searched for before only add channels
+    const existingStation = stations.find(s => isSameRoute(s.source.url, station.source.url))
+    if (existingStation) {
+      existingStation.channels.push(...station.channels)
+      // remove duplicates
+      const channelMap = new Map(existingStation.channels.map(c => [c.id || c.slug, c]))
+      existingStation.channels = Array.from(channelMap.values())
+      
+      existingStation.searched_ids.push(station.id)
+      const index = stations.findIndex(s => isSameRoute(s.source.url, station.source.url))
+      stations[index] = existingStation
+    } else {
+      stations.push(station)
+    }
+    await storage.setItem('local:stations', stations)
+  } else {
+    await storage.setItem('local:stations', [station])
+  }
+}
+
+// ======================================= type conversion helper ===================================
+function blockToStation(block: ArenaBlock): Station{
+  return {
+    id: block.id,
+    title: block.title,
+    generated_title: block.generated_title,
+    class: block.class,
+    description: block.description,
+    source: block.source || { url: '' },
+    image: block.image,
+    channels: block.channels || [],
+    searched_ids: [block.id]
+  }
+}

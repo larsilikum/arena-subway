@@ -6,7 +6,6 @@
     (e: 'close'): void,
   }>()
   const url = ref<string>('')
-  const show = ref<boolean>(true)
   const color = computed<string>(() => {
     if (!props.line) return '#000'
     return hashColor.hashStringToColor(props.line.title).primary
@@ -31,9 +30,16 @@
 <template>
   <div class="line">
     <button id="close" @click="emit('close')">x</button>
-    <h2><span class="line-abbr">{{ line.title.substring(0, 1) }}</span>&nbsp;&ThickSpace;{{ line.title }}</h2>
+    <div class="left-column-top">
+      <span class="line-abbr">{{ line.title.substring(0, 1) }}</span>
+      <div>
+        <h2>{{ line.title }}</h2>
+        <p id="author" v-if="line.user">by: {{ line.user.username }}</p>
+        <a id="channel-link" :href="`https://www.are.na/${line.user.slug}/${line.slug}`">are.na channel</a>
+      </div>
+    </div>
     <div class="metadata">
-      <p v-if="line.metadata && line.metadata.description != '' && !commuting" class="description">{{ line.metadata.description }}</p>
+      <p v-if="line.metadata && line.metadata.description != ''" class="description">{{ line.metadata.description }}</p>
     </div>
     <div class="stations">
       <div class="stations-container">
@@ -52,14 +58,14 @@
 
 <style scoped>
 .line {
-  width: calc(100dvw - 2rem);
+  width: calc(100dvw - .8rem);
   position: relative;
   /* height: 400px; */
   display: grid;
   grid-template-columns: 1fr 1fr;
   column-gap: 1rem;
   background: Field;
-  padding: 2rem 1rem 1rem 1rem;
+  padding: 1rem .4rem calc(1rem + 32px) .4rem;
   overflow-y: hidden;
   /* border-bottom: 2.5px solid var(--text-color); */
 }
@@ -67,16 +73,26 @@
 button#close {
   position: absolute;
   right: 1rem;
-  top: 2rem;
+  top: 1rem;
+}
+
+.left-column-top {
+  display: flex;
+  flex-direction: row;
 }
 
 h2 {
   position: relative;
-  margin: 0;
+  margin: .25em 0 1rem 0;
   color: var(--text-color);
   font-weight: normal;
   font-size: x-large;
   line-height: 1;
+}
+
+#author, #channel-link {
+  margin: 0;
+  font-size: small;
 }
 
 .description {
@@ -93,8 +109,11 @@ h2 {
   color: v-bind(textColor);
   width: 1.5em;
   height: 1.5em;
+  margin-right: 1rem;
   border-radius: 50%;
-  display: inline-flex;
+  font-size: x-large;
+  flex-shrink: 0;
+  display: flex;
   justify-content: center;
   align-items: center;
 }
