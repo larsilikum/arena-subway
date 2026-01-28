@@ -1,9 +1,11 @@
 html {
   position: fixed;
+  top: 0;
+  left: 0;
   z-index: 99999;
   pointer-events: none;
   font-family: system-ui, sans-serif;
-  width: 100%;
+  width: 100dvw;
   color-scheme: light dark;
 }
 
@@ -15,14 +17,22 @@ html:has(#background.leaving), html:has(#background.arriving) {
 
 body {
   /* font-size: 18px; */
-  width: 100%;
+  max-width: 100%;
   /* --text-color: #df5ffd; */
   --text-color: FieldText;
   color: var(--text-color);
 }
 
 button {
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-family: system-ui, sans-serif;
+  display: flex;
+  background-color: ButtonFace;
+  color: ButtonText;
+  border: 1px solid ButtonBorder;
+  height: 1.7em;
+  border-radius: .5em;
+  padding: .3em .5em 0 .5em;
+  cursor: pointer;
 }
 /* 
 @media screen and (min-width: 1920px) {

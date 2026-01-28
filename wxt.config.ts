@@ -9,6 +9,6 @@ export default defineConfig({
       { resources: ["fonts/*"], matches: ["*://*/*"]},
       { resources: ["svg/*"], matches: ["*://*/*"]},
       { resources: ["css/*"], matches: ["*://*/*"]},
-    ]
+    ],
   }
 });

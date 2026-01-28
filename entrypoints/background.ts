@@ -26,6 +26,8 @@ export default defineBackground(() => {
   async function startLine(line: any, url: string, direction: string) {
     // set currentLine in store for content script to diplay while commuting
     await storage.setItem('local:currentLine', line)
+    await storage.setItem('local:direction', direction)
+    await storage.setItem('local:commuting', true)
     // i know this is ugly, but i havent figured out a way to have the lineIndex stay the same for all requests except like this for now
     lineIndex = 0
     // only use Links (no images, pdfs etc.)
@@ -42,9 +44,9 @@ export default defineBackground(() => {
       stations = stations.slice(0, stationIndex).reverse()
     }
 
-    const instantCommute:boolean = await storage.getItem<boolean>('local:instantCommute') || false
+    const funMode: boolean = await storage.getItem<boolean>('local:funMode') || false
 
-    const commutingTimeSeconds: number = !instantCommute ? await storage.getItem('local:commutingTime') || 10 : 0
+    const commutingTimeSeconds: number = funMode ? await storage.getItem('local:commutingTime') || 10 : 2
     const restingTimeSeconds: number = await storage.getItem('local:restingTime') || 15
     const totalTime = (commutingTimeSeconds + restingTimeSeconds) * 1000
 
@@ -58,27 +60,24 @@ export default defineBackground(() => {
 
   async function timeOutLoopArray(length: number, delay: number, commutingTime: number, f: Function) {
     lineIndex++
-    console.log(commutingTime)
-    if (lineIndex < length) {
+    // if leave button was pressed or we stopped for another reason -> stop loop
+    const isCommuting: boolean = await storage.getItem<boolean | null>('local:commuting') || false 
+    console.log(isCommuting)
+    if (lineIndex < length && isCommuting) {
+
+      // the first station has to wait for the leaving animation to finish then navigate away
       if(lineIndex === 1) {
         setTimeout(async () => {
-          // const isCommuting: boolean = await storage.getItem<boolean | null>('local:commuting') || false 
-          // if (!isCommuting) return
           await f(lineIndex)
           setTimeout(() => timeOutLoopArray(length, delay, commutingTime, f), delay)
         }, commutingTime)
       } else {
-        // const isCommuting: boolean = await storage.getItem<boolean | null>('local:commuting') || false 
-        // if (!isCommuting) return
         await f(lineIndex)
         setTimeout(() => timeOutLoopArray(length, delay, commutingTime, f), delay)
       }
     } else {
-      setTimeout(async () => {
-        await storage.setItem('local:commuting', false)
-        await storage.setItem('local:currentLine', null)
-      }, delay)
-
+      await storage.setItem('local:commuting', false)
+      await storage.setItem('local:currentLine', null)
     }
   }
   

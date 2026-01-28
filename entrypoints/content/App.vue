@@ -3,35 +3,56 @@
   import hashColor from '@/utils/hashColor'
   import { PublicPath } from 'wxt/browser'
 
+  // data
   const lines = ref<any[]>([])
   const line = ref<any>(null)
+  const url = ref<string>('')
+      
+  // storage values
+  const restingTime = ref<number>(10)
+  const commuting = ref<boolean>(false)
+  
+  // animation refs  
+  const leaving = ref<boolean>(false)
+  const arriving = ref<boolean>(false)
+  
+  // indicator light refs (LineDisplayStation)
   const stationIndex = ref<number>(-1)
   const nextStationIndex = ref<number>(-1)
   const nextStation = ref<any>(null)
-  const url = ref<string>('')
-  const leaving = ref<boolean>(false)
-  const arriving = ref<boolean>(false)
-  const commuting = ref<boolean>(false)
 
   async function startRide(line: any, url: string, direction: string) {
-    commuting.value = true
+    await browser.runtime.sendMessage({ type: "start", value: { line, url, direction }})
+    await rideAnimations(line, direction)
+  }
+
+  async function stopRide() {
+    await storage.setItem('local:commuting', false)
+  }
+  
+  async function rideAnimations(line: any, direction: string) {
+    if(!commuting.value) return
     leaving.value = true
     nextStationIndex.value = direction === 'forwards' ? stationIndex.value + 1 : stationIndex.value - 1
     nextStation.value = line.contents[nextStationIndex.value]
     
-    browser.runtime.sendMessage({ type: "start", value: { line, url, direction }})
-    const instantCommute = await storage.getItem('local:instantCommute')
+    const funMode = await storage.getItem('local:funMode')
     setTimeout(() => {
-      storage.setItem('local:commuting', true)
-    }, instantCommute ? 0 : 2000)
-    const commutingTime = await storage.getItem<number | null>('local:commutingTime') || 10
-    setTimeout(() => {
-      leaving.value = false
-      arriving.value = true
-    }, (commutingTime * 1000) - 3000)
+      storage.setItem('local:leaving', true)
+    }, funMode ? 2000 : 0)
+    if (funMode) {
+      const commutingTime = await storage.getItem<number | null>('local:commutingTime') || 10
+      setTimeout(() => {
+        leaving.value = false
+        arriving.value = true
+      }, (commutingTime * 1000) - 3000)
+    }
   }
 
   async function openLine(slug: string) {
+    
+    if (line.value?.slug === slug) return
+
     const currentLine = lines.value.find(l => l.slug === slug)
     if (!currentLine) {
       console.error("Couldnt find line with slug:", slug)
@@ -48,10 +69,21 @@
     stationIndex.value = line.value.contents.findIndex((s: any) => s.source.url === url.value)
   }
 
+  function descendTime() {
+    setTimeout(() => {
+      if(restingTime.value === 0) return
+      restingTime.value = restingTime.value - 1
+      descendTime()
+    }, 1000)
+  }
+
   onMounted(async () => {
     // get commuting values from store
     commuting.value = await storage.getItem('local:commuting') || false
     line.value = await storage.getItem('local:currentLine')
+    restingTime.value = await storage.getItem<number | null>('local:restingTime') || 10
+
+    const direction = await storage.getItem<string | null>('local:direction') || null
 
     // search for block with this title in are.na
     const title = document.title
@@ -72,6 +104,14 @@
         lines.value = [...new Set(lines.value)]
       }
     })
+
+    descendTime()
+    // queue animation if commuting
+    if(commuting.value && direction) {
+      setTimeout(() => {
+        rideAnimations(line.value, direction)
+      }, restingTime.value * 1000)
+    }
   })
 
   // ======================================== helper ===============================================
@@ -107,16 +147,21 @@
       <img id="right-door" :src="getImgUrl('/svg/subway-right-door-tr.png')" alt="">
       <img id="interior" :src="getImgUrl('/svg/subway-interior-tr+fg.png')" alt="">
     </div> -->
-    <template v-if="line">
-      <LineDisplay :line="line" @start="dir => startRide(line, url, dir)" :station-index="stationIndex" :commuting="commuting" :next-station-index="nextStationIndex"/>
+    <template v-if="line && ((!commuting && !leaving) || (commuting && leaving))">
+      <LineDisplay :line="line" @start="dir => startRide(line, url, dir)" @close="() => line = null" :station-index="stationIndex" :commuting="commuting" :next-station-index="nextStationIndex"/>
     </template>
-    <template v-if="lines && !leaving && !arriving">
-      <div class="line-container">
-        <div v-for="l in lines" :class="{'lines': true, 'inactive': line && l.slug != line.slug }" :style="`background-color: ${hashColor.hashStringToColor(l.title).primary};`" @click="openLine(l.slug)">
-          <h5 class="line-abbr" :style="`color: ${hashColor.hashStringToColor(l.title).secondary};`">{{ l.title.substring(0,1) }}<span>{{ l.title.substring(1) }}</span></h5>
+    <header>
+      <button v-if="commuting && (!leaving && !arriving)" @click="stopRide">leave</button>
+      <p id="channel-label">channels:</p>
+      <template v-if="lines && !leaving && !arriving">
+        <div class="lines-container">
+          <div v-for="l in lines" :class="{'lines': true, 'inactive': line && l.slug != line.slug }" :style="`background-color: ${hashColor.hashStringToColor(l.title).primary};`" @click="openLine(l.slug)">
+            <h5 class="line-abbr" :style="`color: ${hashColor.hashStringToColor(l.title).secondary};`">{{ l.title.substring(0,1) }}<span>{{ l.title.substring(1) }}</span></h5>
+          </div>
         </div>
-      </div>
-    </template>
+      </template>
+      <p v-if="commuting && (!leaving && !arriving)" id="departure-time">departing in <span>{{ Math.floor(restingTime/60) }}:{{ restingTime%60 }}</span></p>
+    </header>
   </div>
 </template>
 
@@ -125,7 +170,7 @@
   position: fixed;
   top: 0;
   right: 0;
-  width: 100dvw;
+  width: 100%;
   /* height: 100dvh; */
   z-index: 999;
   pointer-events: all;
@@ -173,16 +218,45 @@
   transition-timing-function: ease-out;
 }
 
-.line-container {
+header {
   position: absolute;
   top: 0;
+  left: 0;
+  width: calc(100dvw - .4rem);
+  padding: 0 .2rem;
+  display: grid;
+  grid-template-columns: min-content min-content auto max-content;
+  gap: .4rem;
+  background-color: Field;
+  color: FieldText;
+  height: 32px;
+  font-size: small;
+  align-items: center;
+}
+
+header p {
+  margin: 0;
+  align-self: center;
+}
+
+#channel-label {
+  justify-self: end;
+}
+
+#departure-time {
+  justify-self: end;
+}
+
+.lines-container {
+  /* position: absolute;
+  top: 0; */
   width: 100%;
   max-width: calc(100% - .4rem);
-  margin: .2rem;
+  margin-inline: .2rem;
   display: flex;
   gap: .2rem;
   align-items: start;
-  flex-wrap: wrap;
+  overflow-x: auto;
 }
 
 .lines {
@@ -202,12 +276,13 @@
   overflow: hidden;
 }
 
-.lines.inactive {
+.lines.inactive:not(:hover) {
   filter: grayscale();
 }
 
 h5 {
   line-height: 1;
+  font-size: small;
   margin: 0;
   white-space: nowrap;
 }
@@ -222,7 +297,7 @@ h5 {
 }
 
 .lines:hover .line-abbr {
-  animation: marquee 1s alternate ease-in-out infinite;
+  animation: marquee 2s alternate ease-in-out infinite;
   transform-origin: 0 0;
 }
 

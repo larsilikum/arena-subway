@@ -1,0 +1,8 @@
+html {
+  /* inset: 32px 0 0 0;
+  position: absolute; */
+}
+
+:root {
+  --vh-safe: calc(100dvh - 32px);
+}

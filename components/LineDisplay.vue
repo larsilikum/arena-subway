@@ -1,11 +1,12 @@
 <script lang="ts" setup>
-  import { PublicPath } from 'wxt/browser'
   import LineDisplayStation from './LineDisplayStation.vue'
   const props = defineProps(['line', 'stationIndex', 'commuting', 'nextStationIndex'])
   const emit = defineEmits<{
-    (e: 'start', value: string): void
+    (e: 'start', value: string): void,
+    (e: 'close'): void,
   }>()
   const url = ref<string>('')
+  const show = ref<boolean>(true)
   const color = computed<string>(() => {
     if (!props.line) return '#000'
     return hashColor.hashStringToColor(props.line.title).primary
@@ -29,6 +30,7 @@
 
 <template>
   <div class="line">
+    <button id="close" @click="emit('close')">x</button>
     <h2><span class="line-abbr">{{ line.title.substring(0, 1) }}</span>&nbsp;&ThickSpace;{{ line.title }}</h2>
     <div class="metadata">
       <p v-if="line.metadata && line.metadata.description != '' && !commuting" class="description">{{ line.metadata.description }}</p>
@@ -50,30 +52,40 @@
 
 <style scoped>
 .line {
-  width: calc(100dvw - 40vmax);
+  width: calc(100dvw - 2rem);
   position: relative;
   /* height: 400px; */
   display: grid;
   grid-template-columns: 1fr 1fr;
   column-gap: 1rem;
   background: Field;
-  padding: 2rem 20vmax 1rem 20vmax;
+  padding: 2rem 1rem 1rem 1rem;
   overflow-y: hidden;
   /* border-bottom: 2.5px solid var(--text-color); */
 }
 
+button#close {
+  position: absolute;
+  right: 1rem;
+  top: 2rem;
+}
+
 h2 {
   position: relative;
-  margin: .2em 0;
+  margin: 0;
   color: var(--text-color);
   font-weight: normal;
-  font-size: large;
+  font-size: x-large;
   line-height: 1;
 }
 
 .description {
+  margin: 0.5em 0;
   position: relative;
   max-width: 40em;
+  padding-right: 1.5em;
+  pointer-events: none;
+  font-size: small;
 }
 
 .line-abbr {
@@ -139,15 +151,7 @@ h2 {
 }
 
 button {
-  display: flex;
   font-size: medium;
-  background-color: transparent;
-  color: var(--text-color);
-  border: 2.5px solid var(--text-color);
-  height: 1.5em;
-  border-radius: .75em;
-  padding: .1em .5em 0 .5em;
-  cursor: pointer;
 }
 
 button span {

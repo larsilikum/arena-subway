@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-defineProps<{
+const props = defineProps<{
   station: any,
   url: string,
   color: string,
@@ -8,6 +8,8 @@ defineProps<{
   nextStationIndex: number,
   commuting: boolean
 }>()
+
+const stationEl = ref<HTMLElement | null>(null)
 
 // const stationTitle = ref<HTMLElement | null>(null)
 // const height = ref<string>('4em')
@@ -29,10 +31,15 @@ defineProps<{
 //   // sin 30 deg should be 0.5
 //   return `calc(${elementHeight * 2}px + 1em)`
 // })
+onMounted(() => {
+  if (props.stationIndex === props.index) {
+    stationEl.value?.scrollIntoView({behavior: 'smooth', block: 'center', inline: 'center'})
+  }
+})
 </script>
 
 <template>
-  <div class="station">
+  <div class="station" ref="stationEl">
     <h5 ref="stationTitle">{{ station.title }}</h5>
     <div :class="{'indicator': true, 'active': stationIndex === index && nextStationIndex < 0, 'arriving-at': nextStationIndex === index && commuting}"></div>
   </div>
@@ -55,14 +62,14 @@ defineProps<{
   /* font-family: BrigadeCondensed, sans-serif;
   letter-spacing: .02em; */
   display: block;
-  font-size: medium;
+  font-size: small;
   margin: 0;
   transform-origin: 0 100%;
   transform: rotate(-30deg) translate(.5em, .2em);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 10em;
+  max-width: 10rem;
   width: min-content;
   font-weight: normal;
   line-height: 0.9;
