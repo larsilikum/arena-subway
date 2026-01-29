@@ -1,4 +1,4 @@
-import { Message, ArenaBlock, ArenaChannel, Station } from "@/types"
+import { Message, ArenaBlock, ArenaChannel, Station, ArenaSource, ArenaImage, ArenaUser } from "@/types"
 import { isSameRoute } from "@/utils/compareRoute"
 
 export default defineBackground(() => {
@@ -198,14 +198,20 @@ export default defineBackground(() => {
       promises.push(
         Promise.resolve(() => {
           setTimeout(() => {}, i * 30)
-        }).then(() => {
+        }).then(async () => {
           return fetch(`http://api.are.na/v2/channels/${slug}/contents?per=${per}&page=${i}`)
-        }).then(r => r.json())
+            .catch(error => console.log(error)) 
+        }).then(r => {
+          if(r) {
+            return r.json()
+          }
+          return []
+          })
       )
     }
     return await Promise.all(promises)
       .then(d => {
-        return d.map(r => r.contents).flat()
+        return d.map((r: ArenaChannel) => parseChannelContents(r.contents)).flat()
       })
   }
 })
@@ -259,9 +265,64 @@ function blockToStation(block: ArenaBlock): Station{
     generated_title: block.generated_title,
     class: block.class,
     description: block.description,
-    source: block.source || { url: '' },
+    source: apiSourceToArenaSource(block.source),
     image: block.image,
-    channels: block.channels || [],
+    channels: parseBlockChannels(block.channels),
     searched_ids: [block.id]
   }
+}
+
+function apiSourceToArenaSource(source: { url: string } | undefined): ArenaSource {
+  return {
+    url: source?.url || ''
+  }
+}
+
+function apiImageToArenaImage(image: { original: ArenaSource } | undefined): ArenaImage | undefined {
+  if(!image) return undefined
+  return {
+    original: apiSourceToArenaSource(image.original)
+  }
+}
+
+function apiUserToArenaUser(user: ArenaUser): ArenaUser {
+  return {
+    username: user.username
+  }
+}
+
+function apiBlockToArenaBlock(block: ArenaBlock): ArenaBlock{
+  return {
+    id: block.id,
+    title: block.title,
+    generated_title: block.generated_title,
+    class: block.class,
+    description: block.description,
+    source: apiSourceToArenaSource(block.source),
+    image: apiImageToArenaImage(block.image),
+    channels: undefined
+  }
+}
+
+function apiChannelToArenaChannel(channel: ArenaChannel): ArenaChannel {
+  return {
+    id: channel.id,
+    title: channel.title,
+    slug: channel.slug,
+    length: channel.length,
+    class: channel.class,
+    user: apiUserToArenaUser(channel.user),
+    contents: parseChannelContents(channel.contents)
+  }
+}
+
+function parseChannelContents(contents: (ArenaBlock | ArenaChannel)[] | undefined): (ArenaBlock | ArenaChannel)[] {
+  if (!contents) return []
+  return contents.map((content: ArenaChannel | ArenaBlock) => content.class === 'Channel' ? apiChannelToArenaChannel(content as ArenaChannel) : apiBlockToArenaBlock(content as ArenaBlock))
+}
+
+
+function parseBlockChannels(channels: ArenaChannel[] | undefined): ArenaChannel[]{
+  if (!channels) return []
+  return channels.map(channel => apiChannelToArenaChannel(channel))
 }

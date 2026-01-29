@@ -18,9 +18,7 @@ export interface ArenaBlock {
   class: string
   description?: string
   source?: ArenaSource
-  image?: {
-    original: ArenaSource
-  }
+  image?: ArenaImage
   channels?: ArenaChannel[]
 }
 
@@ -31,8 +29,12 @@ export interface ArenaChannel {
   length: number
   class: string
   user: ArenaUser
-  contents: (ArenaBlock | ArenaChannel)[]
+  contents?: (ArenaBlock | ArenaChannel)[]
   full_fetch?: boolean
+}
+
+export interface ArenaImage {
+  original: ArenaSource
 }
 
 export interface Station {
