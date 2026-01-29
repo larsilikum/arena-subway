@@ -74,11 +74,9 @@ function cssShenanigans() {
   commutingCssLink.href = commutingCssUrl
   commutingCssLink.rel = 'stylesheet'
 
-  storage.watch<boolean | null>('local:leaving', async (newVal: (boolean | null), _oldVal) => {
-    if (newVal) {
+  storage.watch('local:mode', async (newVal: (string | null)) => {
+    if (newVal !== null && newVal === "leaving") {
       document.head.appendChild(commutingCssLink)
-    } else {
-      document.head.removeChild(commutingCssLink)
     }
   })
 }

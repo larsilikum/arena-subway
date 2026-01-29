@@ -2,7 +2,7 @@ import { Message, ArenaBlock, ArenaChannel, Station, ArenaSource, ArenaImage, Ar
 import { isSameRoute } from "@/utils/compareRoute"
 
 // how many contents to fetch from a channel at once
-const per = 30
+const per = 50
 
 // retries
 const MAX_RETRIES = 4
@@ -18,15 +18,44 @@ export default defineBackground(() => {
   let lineIndex = 0
   let stations: any[] = []
 
-  browser.runtime.onMessage.addListener(handleMessages)
+  const modeTimes = {
+    "leaving": 2000,
+    "commuting": 10000,
+    "arriving": 2000,
+    "resting": 30000,
+  }
+  // popup config
+  let funMode:boolean = false
+
+  // watch storage for popup config values
+  storage.watch('local:commutingTime', (newVal: number | null) => {
+    if (newVal !== null) modeTimes.commuting = newVal * 1000
+  })
+  storage.watch('local:restingTime', (newVal: number | null) => {
+    if (newVal !== null) modeTimes.resting = newVal * 1000
+  })
+  storage.watch('local:funMode', (newVal: boolean | null) => {
+    if (newVal !== null) funMode = newVal
+  })
+
+  storage.setItem('local:mode', "idle")
+
+  // commuting value 
   storage.setItem('local:commuting', false)
+  let isCommuting:boolean = false
+
+  storage.watch('local:commuting', (newVal: boolean | null) => {
+    if (newVal !== null) isCommuting = newVal
+  })
+
+  browser.runtime.onMessage.addListener(handleMessages)
 
   // ==================================== MESSAGE HANDLER ===============================================
 
   function handleMessages(message: Message, sender: Browser.runtime.MessageSender, sendResponse: Function) {
     switch (message.type) {
       case "start":
-        startLine(message.value.line, message.value.url, message.value.direction, message.value.fromArena)
+        startLine(message.value.line, message.value.url, message.value.direction, message.value.fromArena, sender.tab)
         break
       case "getLine":
         getLine(message.value.slug, sender.tab)
@@ -42,14 +71,15 @@ export default defineBackground(() => {
     }
   }
 
-  async function startLine(line: any, url: string, direction: string, fromArena: boolean) {
+  async function startLine(line: any, url: string, direction: string, fromArena: boolean, tab: globalThis.Browser.tabs.Tab | undefined) {
     // set currentLine in store for content script to diplay while commuting
     await storage.setItem('local:currentLine', line)
     await storage.setItem('local:direction', direction)
     await storage.setItem('local:commuting', true)
 
     // i know this is ugly, but i havent figured out a way to have the lineIndex stay the same for all requests except like this for now
-    lineIndex = -1
+    // this will be automatically updated to 0 in the timeOutLoopArray
+    lineIndex = 0
 
     // only use Links (no images, pdfs etc.)
     stations = line.contents.filter((content: any) => content.class === 'Link')
@@ -57,60 +87,87 @@ export default defineBackground(() => {
     // our departure station based on the current url
     let stationIndex: number = 0
 
-    // if we start on a arena channel, we start with the first station
+    // if we dont start from an arena channel, we need to find where we are on the line and cut the stations in the other direction
     if (!fromArena) {
       // get station index of the current url
       stationIndex = 0
       stationIndex = stations.findIndex(station => isSameRoute(station.source?.url, url))
       if(stationIndex < 0) {
         console.error("Couldnt find station with this url in line", url)
-      } 
-    }
-
-    // depending on which direction we're going we cut the rest of the array and reverse it for going the other direction
-    if (direction === 'forwards') {
-      stations = stations.slice(stationIndex)
+      }
+      // depending on which direction we're going we cut the rest of the array and reverse it for going the other direction
+      if (direction === 'forwards') {
+        stations = stations.slice(stationIndex + 1)
+      } else {
+        stations = stations.slice(0, stationIndex).reverse()
+      }
     } else {
-      stations = stations.slice(0, stationIndex + 1).reverse()
+      // if we start from arena we only can go forwards or backwards through all stations
+      if (direction === 'backwards') {
+        stations = stations.reverse()
+      }
     }
 
-    // start the commute
-    timeOutLoopArray(stations.length, async (i: number) => {
-      const query = await browser.tabs.query({active: true})
-      const activeTab = query[0]
-      if (activeTab.id) browser.tabs.update(activeTab.id, { url: stations[i].source.url })
+    if(tab) {
+      commutingCascade(stations.length, async (i: number) => {
+        await browser.tabs.update(tab.id, { url: stations[i].source.url })
+      })
+    }
+  }
+
+  async function commutingCascade(length: number, f: Function) {
+    if (lineIndex < length && isCommuting) {
+      await secondLoopModeUpdate("leaving")
+      if (funMode) await secondLoopModeUpdate("commuting")
+      if (funMode) await secondLoopModeUpdate("arriving")
+      lineIndex++
+      await f(lineIndex)
+      await secondLoopModeUpdate("resting")
+      commutingCascade(length, f)
+    } else {
+      await storage.setItem('local:mode', "idle")
+      return
+    }
+  }
+
+  async function secondLoopModeUpdate(mode: "leaving" | "commuting" | "arriving" | "resting", elapsedTime: number = 0) {
+    if (!isCommuting) return
+    if (elapsedTime === 0) await storage.setItem('local:mode', mode)
+    return new Promise((resolve) => {
+      setTimeout(async () => {
+        const time: number = modeTimes[mode]
+        if (!time) resolve("mode doesnt exist")
+        if (mode === "resting") await storage.setItem('local:timeToDeparture', time - elapsedTime)
+        if (elapsedTime < time) {
+          await secondLoopModeUpdate(mode, elapsedTime + 1000)
+        }
+        resolve("next")
+      }, 1000);
     })
   }
 
-  async function timeOutLoopArray(length: number, f: Function) {
-    lineIndex++
-    // if leave button was pressed or we stopped for another reason -> stop loop
-    const isCommuting: boolean = await storage.getItem<boolean | null>('local:commuting') || false 
+  // async function timeOutLoopArray(length: number, f: Function) {
+  //   lineIndex++
 
-    // calculate new Values for timeout in case popup sliders have been changed
-    const funMode: boolean = await storage.getItem<boolean>('local:funMode') || false
+  //   const delay = modeTimes.resting + (funMode ? modeTimes.commuting : 2000)
 
-    const commutingTime: number = (funMode ? await storage.getItem<number | null>('local:commutingTime') || 10 : 2) * 1000
-    const restingTime: number = (await storage.getItem<number | null>('local:restingTime') || 15) * 1000
-    const delay = restingTime + commutingTime
-
-    if (lineIndex < length && isCommuting) {
-      // the first station has to wait for the leaving animation to finish then navigate away
-      if(lineIndex === 1) {
-        setTimeout(async () => {
-          await f(lineIndex)
-          setTimeout(() => timeOutLoopArray(length, f), delay)
-        }, commutingTime)
-      } else {
-        await f(lineIndex)
-        setTimeout(() => timeOutLoopArray(length, f), delay)
-      }
-    } else {
-      await storage.setItem('local:commuting', false)
-      await storage.setItem('local:currentLine', null)
-      lineIndex = 0
-    }
-  }
+  //   if (lineIndex < length && isCommuting) {
+  //     // the first station has to wait for the leaving animation to finish then navigate away
+  //     if(lineIndex === 0) {
+  //       setTimeout(async () => {
+  //         await f(lineIndex)
+  //         setTimeout(() => timeOutLoopArray(length, f), delay)
+  //       }, modeTimes.commuting)
+  //     } else {
+  //       await f(lineIndex)
+  //       setTimeout(() => timeOutLoopArray(length, f), delay)
+  //     }
+  //   } else {
+  //     await storage.setItem('local:commuting', false)
+  //     await storage.setItem('local:currentLine', null)
+  //     lineIndex = 0
+  //   }
+  // }
 
   
   // get blocks from arena channel and send response via messages

@@ -1,6 +1,6 @@
 <script lang="ts" setup>
   import LineDisplay from '@/components/LineDisplay.vue'
-import { ArenaChannel } from '@/types'
+  import { ArenaChannel } from '@/types'
   import { isSameRoute } from '@/utils/compareRoute'
   import hashColor from '@/utils/hashColor'
   import { PublicPath } from 'wxt/browser'
@@ -8,22 +8,18 @@ import { ArenaChannel } from '@/types'
   // data
   const lines = ref<ArenaChannel[]>([])
   const line = ref<ArenaChannel | null>(null)
-  const arenaChannel = ref<ArenaChannel | null>(null)
   const url = ref<string>('')
       
   // storage values
   const restingTime = ref<number>(10)
   const commuting = ref(false)
+  const mode = ref<string>('')
 
   // ui refs
   const lineOpen = ref(false)
   const headerOpen = ref(true)
   const routeArenaChannel = ref(false)
-  
-  // animation refs  
-  const leaving = ref(false)
-  const arriving = ref(false)
-  
+    
   // indicator light values (LineDisplayStation)
   const stationIndex = computed<number>(() => {
     if(routeArenaChannel.value) return -1
@@ -46,32 +42,19 @@ import { ArenaChannel } from '@/types'
   async function rideAnimations(line: any, direction: string) {
     if(!commuting.value) return
     
-    leaving.value = true
-
     // set nextStation to trigger blinking light in LineDisplayStation
     nextStationIndex.value = direction === 'forwards' ? stationIndex.value + 1 : stationIndex.value - 1
     console.log(nextStationIndex.value, stationIndex.value)
     nextStation.value = line.contents[nextStationIndex.value]
-    
-    // if fun mode is enabled wait 2s for closing doors
-    const funMode = await storage.getItem('local:funMode')
-    setTimeout(() => {
-      storage.setItem('local:leaving', true)
-    }, funMode ? 2000 : 0)
-
-    // if fun mode is enabled trigger animations for arriving after the correct amount of time
-    if (funMode) {
-      const commutingTime = await storage.getItem<number | null>('local:commutingTime') || 10
-      setTimeout(() => {
-        leaving.value = false
-        arriving.value = true
-      }, (commutingTime * 1000) - 3000)
-    }
   }
+
+  const ridingAnimation = computed<boolean>(() => {
+    return mode.value === "arriving" || mode.value === "commuting" || mode.value === "leaving"
+  })
 
   // ============================================ ui functions ======================================
   async function openLine(slug: string) {
-    lineOpen.value = !lineOpen.value
+    lineOpen.value = true
 
     if (line.value?.slug === slug) return
 
@@ -92,14 +75,7 @@ import { ArenaChannel } from '@/types'
     line.value.contents = line.value.contents?.filter((s: any) => s.class === 'Link')
     console.log(line.value)
   }
-  // departure timer
-  function descendTime() {
-    setTimeout(() => {
-      if(restingTime.value === 0) return
-      restingTime.value = restingTime.value - 1
-      descendTime()
-    }, 1000)
-  }
+
   // header display mode functionality
   async function changeHeaderMode(open: boolean) {
     headerOpen.value = open
@@ -113,6 +89,8 @@ import { ArenaChannel } from '@/types'
     commuting.value = await storage.getItem('local:commuting') || false
     line.value = await storage.getItem('local:currentLine')
     restingTime.value = await storage.getItem<number | null>('local:restingTime') || 10
+    mode.value = await storage.getItem<string>('local:mode') || "idle"
+
     const direction = await storage.getItem<string | null>('local:direction') || null
 
     // get ui values from store
@@ -156,7 +134,6 @@ import { ArenaChannel } from '@/types'
       }
     })
 
-    descendTime()
     // queue animation if commuting
     if(commuting.value && direction) {
       setTimeout(() => {
@@ -188,10 +165,20 @@ import { ArenaChannel } from '@/types'
     commuting.value = newVal || false
   })
 
+  const modeUnwatch = storage.watch('local:mode', (newVal: string | null) => {
+    if (newVal !== null) mode.value = newVal
+  })
+
+  const remainingTimeUnwatch = storage.watch('local:timeToDeparture', (newVal: number | null) => {
+    if (newVal !== null) restingTime.value = newVal / 1000
+  })
+
   // unwatch storage before unmount
   onBeforeUnmount(() => {
     currentLineUnwatch()
     commutingUnwatch()
+    modeUnwatch()
+    remainingTimeUnwatch()
   })
 </script>
 
@@ -207,11 +194,11 @@ import { ArenaChannel } from '@/types'
       <img id="right-door" :src="getImgUrl('/svg/subway-right-door-tr.png')" alt="">
       <img id="interior" :src="getImgUrl('/svg/subway-interior-tr+fg.png')" alt="">
     </div> -->
-    <template v-if="lineOpen || (line && lineOpen && ((!commuting && !leaving)) || (commuting && leaving))">
+    <template v-if="lineOpen || ridingAnimation">
       <LineDisplay :line="line" @start="dir => startRide(line, dir)" @close="() => lineOpen = false" :station-index="stationIndex" :commuting="commuting" :next-station-index="nextStationIndex"/>
     </template>
     <header :class="{'closed': !headerOpen}">
-      <button v-if="commuting && (!leaving && !arriving)" @click="stopRide">leave</button>
+      <button v-if="commuting && !ridingAnimation" @click="stopRide">leave</button>
       <p v-if="headerOpen" id="channel-label">channels:</p>
       <h5 v-if="!headerOpen" id="lines-amount" class="lines" @click="changeHeaderMode(true)">{{ lines.length }}</h5>
       <template v-if="lines && headerOpen">
@@ -221,7 +208,7 @@ import { ArenaChannel } from '@/types'
           </div>
         </div>
       </template>
-      <p v-if="commuting && (!leaving && !arriving)" id="departure-time"><span v-if="headerOpen">departing in </span><span>{{ Math.floor(restingTime/60) }}:{{ restingTime%60 }}</span></p>
+      <p v-if="commuting && !ridingAnimation" id="departure-time"><span v-if="headerOpen">departing in </span><span>{{ Math.floor(restingTime/60) }}:{{ restingTime%60 }}</span></p>
       <button v-if="headerOpen" id="close-all" @click="changeHeaderMode(false)">x</button>
     </header>
   </div>
