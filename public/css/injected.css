@@ -1,7 +1,9 @@
 html {
-  inset: 32px 0 0 0;
+  /* inset: 32px 0 0 0; */
 }
 
-:root {
-  --vh-safe: calc(100dvh - 32px);
-}
+/* body::after {
+  content: '';
+  display: block;
+  height: 32px;
+} */

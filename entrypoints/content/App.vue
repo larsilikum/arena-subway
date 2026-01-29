@@ -1,12 +1,14 @@
 <script lang="ts" setup>
   import LineDisplay from '@/components/LineDisplay.vue'
+import { ArenaChannel } from '@/types'
   import { isSameRoute } from '@/utils/compareRoute'
   import hashColor from '@/utils/hashColor'
   import { PublicPath } from 'wxt/browser'
 
   // data
-  const lines = ref<any[]>([])
-  const line = ref<any>(null)
+  const lines = ref<ArenaChannel[]>([])
+  const line = ref<ArenaChannel | null>(null)
+  const arenaChannel = ref<ArenaChannel | null>(null)
   const url = ref<string>('')
       
   // storage values
@@ -16,6 +18,7 @@
   // ui refs
   const lineOpen = ref(false)
   const headerOpen = ref(true)
+  const routeArenaChannel = ref(false)
   
   // animation refs  
   const leaving = ref(false)
@@ -23,6 +26,7 @@
   
   // indicator light values (LineDisplayStation)
   const stationIndex = computed<number>(() => {
+    if(routeArenaChannel.value) return -1
     return line.value?.contents?.findIndex((s: any) => isSameRoute(s.source?.url, window.location.href)) || -1
   })
   const nextStationIndex = ref<number>(-1)
@@ -30,7 +34,7 @@
   
   // =========================== commuting functions ====================================
   async function startRide(line: any, direction: string) {
-    await browser.runtime.sendMessage({ type: "start", value: { line, url: window.location.href, direction }})
+    await browser.runtime.sendMessage({ type: "start", value: { line, url: window.location.href, direction, fromArena: routeArenaChannel.value }})
     commuting.value = true
     await rideAnimations(line, direction)
   }
@@ -79,13 +83,13 @@
 
     line.value = currentLine
 
-    if (currentLine.contents.length != currentLine.length) {
+    if (currentLine.contents?.length != currentLine.length) {
       line.value.contents = (await browser.runtime.sendMessage({ type: "getLineContents", value: {
         slug,
         length: currentLine.length,
       } }))
     }
-    line.value.contents = line.value.contents.filter((s: any) => s.class === 'Link')
+    line.value.contents = line.value.contents?.filter((s: any) => s.class === 'Link')
     console.log(line.value)
   }
   // departure timer
@@ -115,24 +119,40 @@
     const hOVal = await storage.getItem<boolean | null>('local:headerOpen')
     headerOpen.value = hOVal !== null ? hOVal : true 
 
-    // search for block with this title in are.na
-    const title = document.title
-    url.value = window.location.href
-    try {
+    routeArenaChannel.value = isAreNaChannel()
+    console.log(routeArenaChannel.value)
+
+    // if we are on a are.na channel fetch this channel
+    if (routeArenaChannel.value) {
       browser.runtime.sendMessage({
-        type: "fetchLines",
-        value: { title, url: url.value }
+        type: "getLine",
+        // are.na channel routes are always /username/channel-slug
+        value: { slug: window.location.pathname.split('/')[2] }
       })
-    } catch (error) {
-      console.error("failed to fetch lines:", error)
+    } else {
+      // search for block with this title in are.na
+      const title = document.title
+      url.value = window.location.href
+      try {
+        browser.runtime.sendMessage({
+          type: "fetchLines",
+          value: { title, url: url.value }
+        })
+      } catch (error) {
+        console.error("failed to fetch lines:", error)
+      }
     }
+
 
     // when receiving stations from call add them to lines array
     browser.runtime.onMessage.addListener((message) => {
       if (message.type === "channelsReceived") {
         console.log("received channels", message.channels)
+        // TODO: need to deduplicate better here
         lines.value = [...(lines.value || []), ...message.channels]
         lines.value = [...new Set(lines.value)]
+      } else if (message.type === "arenaChannelReceived") {
+        lines.value = [message.value.channel]
       }
     })
 
@@ -148,6 +168,15 @@
   // ======================================== helper ===============================================
   function getImgUrl(src: PublicPath) {
     return browser.runtime.getURL(src)
+  }
+
+  function isAreNaChannel(): boolean {
+    const isAreNaDomain = window.location.hostname === 'www.are.na';
+    const hasChannelElements = !!document.querySelector('[aria-label="Search this channel"]');
+
+    console.log(isAreNaDomain, hasChannelElements, window.location)
+    
+    return isAreNaDomain && hasChannelElements;
   }
 
   // ==================================== storage Watchers =========================================

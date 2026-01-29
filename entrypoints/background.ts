@@ -1,6 +1,19 @@
 import { Message, ArenaBlock, ArenaChannel, Station, ArenaSource, ArenaImage, ArenaUser } from "@/types"
 import { isSameRoute } from "@/utils/compareRoute"
 
+// how many contents to fetch from a channel at once
+const per = 30
+
+// retries
+const MAX_RETRIES = 4
+const RETRY_TIMEOUT = 100
+const MAX_REQUESTS = {
+  not_logged_in: 30,
+  logged_in: 120
+}
+
+const requestTimestamps: number[] = []
+
 export default defineBackground(() => {
   let lineIndex = 0
   let stations: any[] = []
@@ -10,10 +23,13 @@ export default defineBackground(() => {
 
   // ==================================== MESSAGE HANDLER ===============================================
 
-  function handleMessages(message: Message, _sender: any, sendResponse: Function) {
+  function handleMessages(message: Message, sender: Browser.runtime.MessageSender, sendResponse: Function) {
     switch (message.type) {
       case "start":
-        startLine(message.value.line, message.value.url, message.value.direction)
+        startLine(message.value.line, message.value.url, message.value.direction, message.value.fromArena)
+        break
+      case "getLine":
+        getLine(message.value.slug, sender.tab)
         break
       case "fetchLines":
         getLines(message)
@@ -26,22 +42,29 @@ export default defineBackground(() => {
     }
   }
 
-  async function startLine(line: any, url: string, direction: string) {
+  async function startLine(line: any, url: string, direction: string, fromArena: boolean) {
     // set currentLine in store for content script to diplay while commuting
     await storage.setItem('local:currentLine', line)
     await storage.setItem('local:direction', direction)
     await storage.setItem('local:commuting', true)
 
     // i know this is ugly, but i havent figured out a way to have the lineIndex stay the same for all requests except like this for now
-    lineIndex = 0
+    lineIndex = -1
 
     // only use Links (no images, pdfs etc.)
     stations = line.contents.filter((content: any) => content.class === 'Link')
 
     // our departure station based on the current url
-    const stationIndex = stations.findIndex(station => isSameRoute(station.source?.url, url))
-    if(stationIndex < 0) {
-      console.error("Couldnt find station with this url in line", url)
+    let stationIndex: number = 0
+
+    // if we start on a arena channel, we start with the first station
+    if (!fromArena) {
+      // get station index of the current url
+      stationIndex = 0
+      stationIndex = stations.findIndex(station => isSameRoute(station.source?.url, url))
+      if(stationIndex < 0) {
+        console.error("Couldnt find station with this url in line", url)
+      } 
     }
 
     // depending on which direction we're going we cut the rest of the array and reverse it for going the other direction
@@ -89,12 +112,36 @@ export default defineBackground(() => {
     }
   }
 
+  
   // get blocks from arena channel and send response via messages
   function getLineContentsHandler(slug: string, channelLength: number, sendResponse: Function) {
     getChannelContents(slug, channelLength).then(d => sendResponse(d))
   }
-
+  
   // =========================================== DATA RETRIEVAL ============================================
+  // get Channel when we are on arena channel page
+  async function getLine(slug: string, tab: Browser.tabs.Tab | undefined) {
+    if(!tab || !tab.id) return
+    // search channel in storage
+    let channel:ArenaChannel | null
+    channel = await getChannelBySlug(slug)
+    // fetch channel if it isnt found in storage
+    if (!channel) {
+      const response: ArenaChannel = await fetchChannel(slug)
+      channel = apiChannelToArenaChannel(response)
+      channel.contents = await getChannelContents(slug, channel.length, channel.contents || [])
+      // store channel
+      await addChannelToStorage(channel)
+    }
+    // send channel to tab which requested
+    browser.tabs.sendMessage(tab.id, {
+      type: "arenaChannelReceived",
+      value: {
+        channel
+      }
+    })
+  }
+
   // get arena channels for a site based on their title and if we're commuting also the channels for the
   // block in the current channel
   async function getLines(message: Message) {
@@ -166,10 +213,10 @@ export default defineBackground(() => {
     return fetched.channels
   }
 
-  async function getChannelContents(slug: string, channelLength: number) {
+  async function getChannelContents(slug: string, channelLength: number, contentsFetched: (ArenaBlock | ArenaChannel)[] = []) {
     const channel: any = await storage.getItem(`local:channel-contents-${slug}`)
     if (channel) return channel.data
-    const fetched = await fetchChannelContents(slug, channelLength)
+    const fetched = await fetchChannelContents(slug, channelLength, contentsFetched)
     try {
       await storage.setItem(`local:channel-contents-${slug}`, { data: fetched })
     }
@@ -181,25 +228,31 @@ export default defineBackground(() => {
 
   // =========================================== DATA FETCHING ===========================================
   async function fetchSearchBlocks(searchTerm: string) {
-    return await fetch(`http://api.are.na/v2/search/blocks?q=${searchTerm}&per=100`).then(r => r.json())
+    return await fetchArena(`search/blocks?q=${searchTerm}&per=100`).then(r => r.json())
   }
 
   async function fetchBlockChannels(id: number) {
-    const blockChannels = await fetch(`http://api.are.na/v2/blocks/${id}/channels`).then(r => r.json())
+    const blockChannels = await fetchArena(`blocks/${id}/channels`).then(r => r.json())
     return blockChannels
   }
 
-  async function fetchChannelContents(slug: string, channelLength: number) {
-    const per = 30
+  async function fetchChannel(slug: string): Promise<ArenaChannel> {
+    return await fetchArena(`channels/${slug}?per=${per}`).then(r => r.json())
+  }
+
+  async function fetchChannelContents(slug: string, channelLength: number, contentsFetched: (ArenaChannel | ArenaBlock)[] = []) {
+    const fetchedLength = contentsFetched.length
+    // this only works if fetchedLength is perfectly divideble by per
+    const fetchedPages = Math.floor(fetchedLength / per)
     const pages = Math.ceil(channelLength / per)
     console.log(`fetching ${pages} pages`)
     const promises: Promise<any>[] = []
-    for (let i = 1; i <= pages; i++) {
+    for (let i = 1 + fetchedPages; i <= pages; i++) {
       promises.push(
         Promise.resolve(() => {
           setTimeout(() => {}, i * 30)
         }).then(async () => {
-          return fetch(`http://api.are.na/v2/channels/${slug}/contents?per=${per}&page=${i}`)
+          return fetchArena(`channels/${slug}/contents?per=${per}&page=${i}`)
             .catch(error => console.log(error)) 
         }).then(r => {
           if(r) {
@@ -211,10 +264,67 @@ export default defineBackground(() => {
     }
     return await Promise.all(promises)
       .then(d => {
-        return d.map((r: ArenaChannel) => parseChannelContents(r.contents)).flat()
+        const contents = d.map((r: ArenaChannel) => parseChannelContents(r.contents)).flat()
+        return [...contentsFetched, ...contents]
       })
   }
+
 })
+
+// ============================= custom fetch function with ratelimiting ===================================
+  
+// Clean up old requests (older than 1 minute)
+function cleanOldRequests() {
+  const oneMinuteAgo = Date.now() - 60000
+  while (requestTimestamps.length > 0 && requestTimestamps[0] < oneMinuteAgo) {
+    requestTimestamps.shift()
+  }
+}
+
+// Check if we can make a request, wait if needed
+async function waitForRateLimit(isLoggedIn: boolean = false): Promise<void> {
+  cleanOldRequests()
+  
+  const limit = isLoggedIn ? MAX_REQUESTS.logged_in : MAX_REQUESTS.not_logged_in
+  
+  if (requestTimestamps.length >= limit) {
+    // Calculate how long to wait until the oldest request is older than 1 minute
+    const oldestRequest = requestTimestamps[0]
+    const waitTime = 60000 - (Date.now() - oldestRequest) + 100 // +100ms buffer
+    await new Promise((resolve) => setTimeout(resolve, waitTime))
+    
+    // Recursively check again after waiting
+    return waitForRateLimit(isLoggedIn)
+  }
+}
+
+async function fetchArena(route: string, retry = 0, isLoggedIn: boolean = false): Promise<Response> {
+  const BaseURL = "http://api.are.na/v2/"
+  
+  // Wait for rate limit before making request
+  await waitForRateLimit(isLoggedIn)
+  
+  // Record this request
+  requestTimestamps.push(Date.now())
+  
+  return fetch(BaseURL + route)
+    .then(async (r) => {
+      if (r.ok) {
+        return r
+      } else if (r.status === 504 && retry < MAX_RETRIES) {
+        const res = await new Promise<Response>((resolve) => {
+          setTimeout(async () => {
+            const result = await fetchArena(route, retry + 1, isLoggedIn)
+            resolve(result)
+          }, RETRY_TIMEOUT)
+        })
+        return res
+      } else {
+        console.error("an error occured", r.status, r.statusText)
+        return r
+      }
+    })
+}
 
 // ========================================== STORAGE HANDLER =====================================
 
@@ -231,6 +341,10 @@ async function getStationByUrl(url: string) {
   const blocks = await storage.getItem<Station[]>('local:stations')
   console.log(blocks, url)
   return blocks?.find(b => isSameRoute(b.source.url, url))
+}
+
+async function getChannelBySlug(slug: string) {
+  return await storage.getItem<ArenaChannel>(`local:channel-${slug}`)
 }
 
 async function addBlockToStorage(block: ArenaBlock) {
@@ -255,6 +369,10 @@ async function addBlockToStorage(block: ArenaBlock) {
   } else {
     await storage.setItem('local:stations', [station])
   }
+}
+
+async function addChannelToStorage(channel: ArenaChannel) {
+  await storage.setItem(`local:channel-${channel.slug}`, channel)
 }
 
 // ======================================= type conversion helper ===================================
@@ -287,7 +405,8 @@ function apiImageToArenaImage(image: { original: ArenaSource } | undefined): Are
 
 function apiUserToArenaUser(user: ArenaUser): ArenaUser {
   return {
-    username: user.username
+    username: user.username,
+    slug: user.slug
   }
 }
 
@@ -311,6 +430,7 @@ function apiChannelToArenaChannel(channel: ArenaChannel): ArenaChannel {
     slug: channel.slug,
     length: channel.length,
     class: channel.class,
+    metadata: channel.metadata,
     user: apiUserToArenaUser(channel.user),
     contents: parseChannelContents(channel.contents)
   }

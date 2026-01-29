@@ -4,7 +4,8 @@ export interface Message {
 }
 
 export interface ArenaUser {
-  username: string
+  username: string,
+  slug: string
 }
 
 export interface ArenaSource {
@@ -29,6 +30,9 @@ export interface ArenaChannel {
   length: number
   class: string
   user: ArenaUser
+  metadata: { 
+    description: string
+  }
   contents?: (ArenaBlock | ArenaChannel)[]
   full_fetch?: boolean
 }
