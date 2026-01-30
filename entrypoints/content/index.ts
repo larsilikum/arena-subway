@@ -20,7 +20,7 @@ export default defineContentScript({
   }
 })
 
-function cssShenanigans() {
+async function cssShenanigans() {
   storage.setItem('local:leaving', false)
 
   // Load custom font
@@ -68,20 +68,11 @@ function cssShenanigans() {
   injectedCssLink.rel = 'stylesheet'
   document.head.prepend(injectedCssLink)
 
-  // add commuting css if commuting is true
-  const commutingCssUrl = browser.runtime.getURL('/css/commuting.css')
-  const commutingCssLink = document.createElement('link')
-  commutingCssLink.href = commutingCssUrl
-  commutingCssLink.rel = 'stylesheet'
 
-  storage.watch('local:mode', async (newVal: (string | null)) => {
-    if (newVal !== null && newVal === "leaving") {
-      document.head.appendChild(commutingCssLink)
-    }
-  })
 }
 
 function defineOverlay(ctx: ContentScriptContext) {
+  let unwatch: Function
   return createShadowRootUi(ctx, {
     name: "subway-overlay",
     position: "modal",
@@ -91,9 +82,25 @@ function defineOverlay(ctx: ContentScriptContext) {
       const app = createApp(App)
       app.mount(container)
       shadowHost.style.pointerEvents = "none"
+      // add commuting css if commuting is true
+      const commutingCssUrl = browser.runtime.getURL('/css/commuting.css')
+      const commutingCssLink = document.createElement('link')
+      commutingCssLink.href = commutingCssUrl
+      commutingCssLink.rel = 'stylesheet'
+
+      browser.runtime.sendMessage({ type: 'getTabId' }).then(tabId => {
+        if (!tabId) return
+        unwatch = storage.watch(`local:mode:${tabId}`, async (newVal: (string | null)) => {
+          if (newVal !== null && newVal === "leaving") {
+            document.head.appendChild(commutingCssLink)
+          }
+        })
+      })
+
       return app
     },
     onRemove(app) {
+      unwatch()
       app?.unmount()
     }
   })

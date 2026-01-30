@@ -38,15 +38,10 @@ export default defineBackground(() => {
     if (newVal !== null) funMode = newVal
   })
 
-  storage.setItem('local:mode', "idle")
+  // storage.setItem('local:mode', "idle")
 
   // commuting value 
-  storage.setItem('local:commuting', false)
-  let isCommuting:boolean = false
-
-  storage.watch('local:commuting', (newVal: boolean | null) => {
-    if (newVal !== null) isCommuting = newVal
-  })
+  // storage.setItem('local:commuting', false)
 
   browser.runtime.onMessage.addListener(handleMessages)
 
@@ -54,6 +49,9 @@ export default defineBackground(() => {
 
   function handleMessages(message: Message, sender: Browser.runtime.MessageSender, sendResponse: Function) {
     switch (message.type) {
+      case "getTabId":
+        sendResponse(sender.tab?.id)
+        return true
       case "start":
         startLine(message.value.line, message.value.url, message.value.direction, message.value.fromArena, sender.tab)
         break
@@ -61,7 +59,7 @@ export default defineBackground(() => {
         getLine(message.value.slug, sender.tab)
         break
       case "fetchLines":
-        getLines(message)
+        getLines(message, sender.tab)
         break
       case "getLineContents":
         getLineContentsHandler(message.value.slug, message.value.length, sendResponse)
@@ -71,11 +69,12 @@ export default defineBackground(() => {
     }
   }
 
-  async function startLine(line: any, url: string, direction: string, fromArena: boolean, tab: globalThis.Browser.tabs.Tab | undefined) {
+  async function startLine(line: any, url: string, direction: string, fromArena: boolean, tab: Browser.tabs.Tab | undefined) {
+    if (!tab) return
     // set currentLine in store for content script to diplay while commuting
-    await storage.setItem('local:currentLine', line)
-    await storage.setItem('local:direction', direction)
-    await storage.setItem('local:commuting', true)
+    await storage.setItem(`local:currentLine:${tab.id}`, line)
+    await storage.setItem(`local:direction:${tab.id}`, direction)
+    await storage.setItem(`local:commuting:${tab.id}`, true)
 
     // i know this is ugly, but i havent figured out a way to have the lineIndex stay the same for all requests except like this for now
     // this will be automatically updated to 0 in the timeOutLoopArray
@@ -108,43 +107,62 @@ export default defineBackground(() => {
       }
     }
 
-    if(tab) {
-      commutingCascade(stations.length, async (i: number) => {
-        await browser.tabs.update(tab.id, { url: stations[i].source.url })
-      })
-    }
+    commutingCascade(stations.length, tab, async (i: number) => {
+      await browser.tabs.update(tab.id, { url: stations[i].source.url })
+    })
+
   }
 
-  async function commutingCascade(length: number, f: Function) {
+  async function commutingCascade(length: number, tab: Browser.tabs.Tab, f: Function) {
+    const isCommuting = await storage.getItem(`local:commuting:${tab.id}`)
     if (lineIndex < length && isCommuting) {
-      await secondLoopModeUpdate("leaving")
-      if (funMode) await secondLoopModeUpdate("commuting")
-      if (funMode) await secondLoopModeUpdate("arriving")
+      await secondLoopModeUpdate("leaving", tab)
+      if (funMode) await secondLoopModeUpdate("commuting", tab)
+      if (funMode) await secondLoopModeUpdate("arriving", tab)
       lineIndex++
       await f(lineIndex)
-      await secondLoopModeUpdate("resting")
-      commutingCascade(length, f)
+      await secondLoopModeUpdate("resting", tab)
+      commutingCascade(length, tab, f)
     } else {
-      await storage.setItem('local:mode', "idle")
+      await storage.setItem(`local:mode:${tab.id}`, "idle")
       return
     }
   }
 
-  async function secondLoopModeUpdate(mode: "leaving" | "commuting" | "arriving" | "resting", elapsedTime: number = 0) {
+  async function secondLoopModeUpdate(mode: "leaving" | "commuting" | "arriving" | "resting", tab: Browser.tabs.Tab, elapsedTime: number = 0) {
+    const isCommuting = await storage.getItem(`local:commuting:${tab.id}`)
     if (!isCommuting) return
-    if (elapsedTime === 0) await storage.setItem('local:mode', mode)
+    if (elapsedTime === 0) await storage.setItem(`local:mode:${tab.id}`, mode)
     return new Promise((resolve) => {
       setTimeout(async () => {
         const time: number = modeTimes[mode]
         if (!time) resolve("mode doesnt exist")
-        if (mode === "resting") await storage.setItem('local:timeToDeparture', time - elapsedTime)
+        if (mode === "resting") await storage.setItem(`local:timeToDeparture:${tab.id}`, time - elapsedTime)
         if (elapsedTime < time) {
-          await secondLoopModeUpdate(mode, elapsedTime + 1000)
+          await secondLoopModeUpdate(mode, tab, elapsedTime + 1000)
         }
         resolve("next")
       }, 1000);
     })
   }
+
+
+  // async function secondLoopModeUpdate(mode: "leaving" | "commuting" | "arriving" | "resting", tab: Browser.tabs.Tab, elapsedTime: number = 0) {
+  //   if (!isCommuting || !tab.id) return
+  //   if (elapsedTime === 0) await browser.tabs.sendMessage(tab.id, { type: "modeUpdate", value: { mode }})
+  //   return new Promise((resolve) => {
+  //     setTimeout(async () => {
+  //       const time: number = modeTimes[mode]
+  //       if (!time) resolve("mode doesnt exist")
+  //       if (!tab.id) return
+  //       if (mode === "resting") await browser.tabs.sendMessage(tab.id, { type: "countdown", value: { time: time - elapsedTime }})
+  //       if (elapsedTime < time) {
+  //         await secondLoopModeUpdate(mode, tab, elapsedTime + 1000)
+  //       }
+  //       resolve("next")
+  //     }, 1000);
+  //   })
+  // }
 
   // async function timeOutLoopArray(length: number, f: Function) {
   //   lineIndex++
@@ -201,22 +219,21 @@ export default defineBackground(() => {
 
   // get arena channels for a site based on their title and if we're commuting also the channels for the
   // block in the current channel
-  async function getLines(message: Message) {
-    const query = await browser.tabs.query({active: true})
-    const activeTab = query[0]
+  async function getLines(message: Message, tab: Browser.tabs.Tab | undefined) {
+    if (!tab) return
     const firstPromises: any[]= []
     const station = await getStationByUrl(message.value.url)
     console.log(station)
-    if (await storage.getItem('local:commuting') && activeTab.id) {
+    if (await storage.getItem('local:commuting') && tab.id) {
       firstPromises.push(
-        getCurrentStationLines(activeTab.id)
+        getCurrentStationLines(tab.id)
       )
-    } else if (station && activeTab.id) {
-      sendStoredStationLines(activeTab.id, station.channels)
+    } else if (station && tab.id) {
+      sendStoredStationLines(tab.id, station.channels)
     }
-    if (activeTab.id && !station) {
+    if (tab.id && !station) {
       firstPromises.push(
-        getStationLinesByTitle(message, activeTab.id)
+        getStationLinesByTitle(message, tab.id)
       )
     }
     if (firstPromises.length) Promise.allSettled(firstPromises)

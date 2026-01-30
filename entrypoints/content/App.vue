@@ -9,6 +9,7 @@
   const lines = ref<ArenaChannel[]>([])
   const line = ref<ArenaChannel | null>(null)
   const url = ref<string>('')
+  const tabId = ref<number>(-1)
       
   // storage values
   const restingTime = ref<number>(10)
@@ -36,7 +37,7 @@
   }
 
   async function stopRide() {
-    await storage.setItem('local:commuting', false)
+    await storage.setItem(`local:commuting:${tabId.value}`, false)
   }
   
   async function rideAnimations(line: any, direction: string) {
@@ -84,14 +85,22 @@
 
   // ======================================= Mounted ===========================================
 
+  const storageUnwatch = ref<Function>(() => {})
+  
   onMounted(async () => {
-    // get commuting values from store
-    commuting.value = await storage.getItem('local:commuting') || false
-    line.value = await storage.getItem('local:currentLine')
-    restingTime.value = await storage.getItem<number | null>('local:restingTime') || 10
-    mode.value = await storage.getItem<string>('local:mode') || "idle"
+    // get tabId
+    tabId.value = await browser.runtime.sendMessage({ type: 'getTabId' })
+    console.log(tabId.value)
 
-    const direction = await storage.getItem<string | null>('local:direction') || null
+    // get commuting values from store
+    commuting.value = await storage.getItem(`local:commuting:${tabId.value}`) || false
+    line.value = await storage.getItem(`local:currentLine:${tabId.value}`)
+    restingTime.value = await storage.getItem<number | null>(`local:restingTime:${tabId.value}`) || 10
+    mode.value = await storage.getItem<string>(`local:mode:${tabId.value}`) || "idle"
+
+    console.log(mode.value, commuting.value, restingTime.value)
+
+    const direction = await storage.getItem<string | null>(`local:direction:${tabId.value}`) || null
 
     // get ui values from store
     const hOVal = await storage.getItem<boolean | null>('local:headerOpen')
@@ -140,6 +149,29 @@
         rideAnimations(line.value, direction)
       }, restingTime.value * 1000)
     }
+
+    const currentLineUnwatch = storage.watch(`local:currentLine:${tabId.value}`, (newVal: any | null) => {
+      line.value = newVal
+    })
+
+    const commutingUnwatch = storage.watch(`local:commuting:${tabId.value}`, (newVal: boolean | null) => {
+      commuting.value = newVal || false
+    })
+
+    const modeUnwatch = storage.watch(`local:mode:${tabId.value}`, (newVal: string | null) => {
+      if (newVal !== null) mode.value = newVal
+    })
+
+    const remainingTimeUnwatch = storage.watch(`local:timeToDeparture:${tabId.value}`, (newVal: number | null) => {
+      if (newVal !== null) restingTime.value = newVal / 1000
+    })
+
+    storageUnwatch.value = () => {
+      currentLineUnwatch()
+      commutingUnwatch()
+      modeUnwatch()
+      remainingTimeUnwatch()
+    }
   })
 
   // ======================================== helper ===============================================
@@ -157,28 +189,11 @@
   }
 
   // ==================================== storage Watchers =========================================
-  const currentLineUnwatch = storage.watch('local:currentLine', (newVal: any | null) => {
-    line.value = newVal
-  })
 
-  const commutingUnwatch = storage.watch('local:commuting', (newVal: boolean | null) => {
-    commuting.value = newVal || false
-  })
-
-  const modeUnwatch = storage.watch('local:mode', (newVal: string | null) => {
-    if (newVal !== null) mode.value = newVal
-  })
-
-  const remainingTimeUnwatch = storage.watch('local:timeToDeparture', (newVal: number | null) => {
-    if (newVal !== null) restingTime.value = newVal / 1000
-  })
 
   // unwatch storage before unmount
   onBeforeUnmount(() => {
-    currentLineUnwatch()
-    commutingUnwatch()
-    modeUnwatch()
-    remainingTimeUnwatch()
+    storageUnwatch.value()
   })
 </script>
 
