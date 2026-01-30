@@ -21,7 +21,6 @@
     return props.line.contents.filter((c: any) => c.class === 'Link')
   })
 
-
   onMounted(() => {
     url.value = window.location.href
   })
@@ -145,6 +144,7 @@ h2 {
   display: flex;
   align-items: end;
   grid-column: span 2;
+  font-size: medium;
   height: 10em;
   padding-bottom: .5em;
   margin-bottom: .5em;

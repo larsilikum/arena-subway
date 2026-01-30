@@ -42,7 +42,7 @@ onMounted(() => {
   /* font-family: BrigadeCondensed, sans-serif;
   letter-spacing: .02em; */
   display: block;
-  font-size: small;
+  font-size: medium;
   margin: 0;
   transform-origin: 0 100%;
   transform: rotate(-30deg) translate(.5em, .2em);

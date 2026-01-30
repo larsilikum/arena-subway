@@ -30,28 +30,40 @@
   const nextStation = ref<any>(null)
   
   // =========================== commuting functions ====================================
-  async function startRide(line: any, direction: string) {
-    await browser.runtime.sendMessage({ type: "start", value: { line, url: window.location.href, direction, fromArena: routeArenaChannel.value }})
-    commuting.value = true
-    await rideAnimations(line, direction)
+  async function startRide(direction: string) {
+    const rawLine = line.value ? structuredClone(JSON.parse(JSON.stringify(line.value))) : null
+    const rawFromArena = structuredClone(JSON.parse(JSON.stringify(routeArenaChannel.value)))
+    const rawUrl = window.location.href
+    await browser.runtime.sendMessage({ type: "start", value: { 
+      line: rawLine, 
+      url: rawUrl, 
+      direction, 
+      fromArena: rawFromArena }})
+    // commuting.value = true
+
+    if(line.value) await rideAnimations(rawLine, direction)
   }
 
   async function stopRide() {
     await storage.setItem(`local:commuting:${tabId.value}`, false)
   }
   
-  async function rideAnimations(line: any, direction: string) {
+  async function rideAnimations(line: ArenaChannel, direction: string) {
     if(!commuting.value) return
     
     // set nextStation to trigger blinking light in LineDisplayStation
     nextStationIndex.value = direction === 'forwards' ? stationIndex.value + 1 : stationIndex.value - 1
     console.log(nextStationIndex.value, stationIndex.value)
-    nextStation.value = line.contents[nextStationIndex.value]
+    if(line.contents) nextStation.value = line.contents[nextStationIndex.value]
   }
 
   const ridingAnimation = computed<boolean>(() => {
     return mode.value === "arriving" || mode.value === "commuting" || mode.value === "leaving"
   })
+
+  function goToNextStation() {
+    browser.runtime.sendMessage({ type: "goToNextStation"})
+  }
 
   // ============================================ ui functions ======================================
   async function openLine(slug: string) {
@@ -135,9 +147,10 @@
     browser.runtime.onMessage.addListener((message) => {
       if (message.type === "channelsReceived") {
         console.log("received channels", message.channels)
-        // TODO: need to deduplicate better here
-        lines.value = [...(lines.value || []), ...message.channels]
-        lines.value = [...new Set(lines.value)]
+        // deduplicate channels
+        const all = [...message.channels, ...lines.value]
+        const linesMap = new Map(all.map(c => [c.id || c.slug, c]))
+        lines.value = Array.from(linesMap.values())
       } else if (message.type === "arenaChannelReceived") {
         lines.value = [message.value.channel]
       }
@@ -146,7 +159,7 @@
     // queue animation if commuting
     if(commuting.value && direction) {
       setTimeout(() => {
-        rideAnimations(line.value, direction)
+        if(line.value) rideAnimations(line.value, direction)
       }, restingTime.value * 1000)
     }
 
@@ -210,12 +223,14 @@
       <img id="interior" :src="getImgUrl('/svg/subway-interior-tr+fg.png')" alt="">
     </div> -->
     <template v-if="lineOpen || ridingAnimation">
-      <LineDisplay :line="line" @start="dir => startRide(line, dir)" @close="() => lineOpen = false" :station-index="stationIndex" :commuting="commuting" :next-station-index="nextStationIndex"/>
+      <LineDisplay :line="line" @start="dir => startRide(dir)" @close="() => lineOpen = false" :station-index="stationIndex" :commuting="commuting" :next-station-index="nextStationIndex"/>
     </template>
-    <header :class="{'closed': !headerOpen}">
+    <header v-if="!ridingAnimation" :class="{'closed': !headerOpen}">
       <button v-if="commuting && !ridingAnimation" @click="stopRide">leave</button>
       <p v-if="headerOpen" id="channel-label">channels:</p>
-      <h5 v-if="!headerOpen" id="lines-amount" class="lines" @click="changeHeaderMode(true)">{{ lines.length }}</h5>
+      <div v-if="!headerOpen" class="lines" id="lines-amount">
+        <h5 class="line-abbr" @click="changeHeaderMode(true)">{{ lines.length }}<span>&ThickSpace;channels</span></h5>
+      </div>
       <template v-if="lines && headerOpen">
         <div class="lines-container">
           <div v-for="l in lines" :class="{'lines': true, 'inactive': line && l.slug != line.slug && lineOpen }" :style="`background-color: ${hashColor.hashStringToColor(l.title).primary};`" @click="openLine(l.slug)">
@@ -223,6 +238,7 @@
           </div>
         </div>
       </template>
+      <button id="next-station-button" v-if="commuting && !ridingAnimation" @click="goToNextStation()">next</button>
       <p v-if="commuting && !ridingAnimation" id="departure-time"><span v-if="headerOpen">departing in </span><span>{{ Math.floor(restingTime/60) }}:{{ restingTime%60 }}</span></p>
       <button v-if="headerOpen" id="close-all" @click="changeHeaderMode(false)">x</button>
     </header>
@@ -288,14 +304,15 @@ header {
   bottom: 0;
   left: 0;
   width: calc(100% - .8rem);
+  max-width: calc(100dvw - .8rem);
   padding: 0 .4rem;
   display: grid;
-  grid-template-columns: min-content min-content auto max-content min-content;
+  grid-template-columns: min-content min-content minmax(0, 1fr) min-content max-content min-content;
   gap: .4rem;
   background-color: Field;
   color: FieldText;
   height: 32px;
-  font-size: small;
+  font-size: medium;
   align-items: center;
   transition: width .5s ease-in-out;
 }
@@ -303,7 +320,7 @@ header {
 header.closed {
   /* left: 50%;
   transform: translateX(-50%); */
-  grid-template-columns: repeat(3, auto);
+  grid-template-columns: repeat(4, auto);
   width: 2em;
   min-width: min-content;
   border-top-right-radius: 16px;
@@ -316,8 +333,11 @@ header.closed {
 }
 
 #lines-amount:hover {
-  width: 1.5em;
-  padding-inline: 0;
+  width: 15ch;
+}
+
+#lines-amount:hover .line-abbr {
+  animation: none;
 }
 
 header p {
@@ -327,6 +347,7 @@ header p {
 
 #channel-label {
   justify-self: end;
+  grid-column: 2 / 3;
 }
 
 #departure-time {
@@ -334,20 +355,33 @@ header p {
 }
 
 #close-all {
-  grid-column: 5 / 6;
+  grid-column: 6 / 7;
 }
 
 .lines-container {
   /* position: absolute;
   top: 0; */
   width: 100%;
-  max-width: calc(100% - .4rem);
+  max-width: 100%;
+  min-width: 0;
   margin-inline: .2rem;
   display: flex;
   gap: .2rem;
   align-items: start;
   overflow-x: auto;
+  grid-column: 3 / 4;
 }
+ /* Hide scrollbar for Chrome, Safari and Opera */
+.lines-container::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.lines-container {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+} 
+
 
 .lines {
   position: relative;
@@ -359,6 +393,7 @@ header p {
   margin: 0;
   border-radius: .75em;
   display: flex;
+  flex-shrink: 0;
   justify-content: center;
   align-items: center;
   /* padding: .4em .3em .2em .3em; */
@@ -373,7 +408,7 @@ header p {
 
 h5 {
   line-height: 1;
-  font-size: small;
+  font-size: medium;
   margin: 0;
   white-space: nowrap;
 }

@@ -16,7 +16,36 @@ const requestTimestamps: number[] = []
 
 export default defineBackground(() => {
   let lineIndex = 0
+  // stores boolean if url is to be skipped without animation (domain not found by dns or 404 error)
+  const tabSkipStationNoAnimation = new Map()
+  // stores boolean if goToNextStation was clicked in content script. Here with commuting animation
+  const tabSkipStation = new Map()
   let stations: any[] = []
+
+  browser.webRequest.onErrorOccurred.addListener(
+    (details) => {
+      console.log('Request error for:', details.url, 'Error:', details.error);
+      if (details.error === 'net::ERR_NAME_NOT_RESOLVED') {
+        console.log('Domain not found');
+        tabSkipStationNoAnimation.set(details.tabId, true)
+      }
+    },
+    { urls: ['<all_urls>'] }
+  );
+
+  browser.webRequest.onCompleted.addListener(
+    details => {
+      if(details.statusCode === 404) {
+        console.log('404 error')
+        tabSkipStationNoAnimation.set(details.tabId, true)
+      }
+    },             // function
+    {
+       urls: ['<all_urls>'],
+      types: ['main_frame']
+    },               //  object
+    ['responseHeaders']       //  optional array of strings
+  )
 
   const modeTimes = {
     "leaving": 2000,
@@ -54,6 +83,9 @@ export default defineBackground(() => {
         return true
       case "start":
         startLine(message.value.line, message.value.url, message.value.direction, message.value.fromArena, sender.tab)
+        break
+      case "goToNextStation":
+        tabSkipStation.set(sender.tab?.id, true)
         break
       case "getLine":
         getLine(message.value.slug, sender.tab)
@@ -116,10 +148,15 @@ export default defineBackground(() => {
   async function commutingCascade(length: number, tab: Browser.tabs.Tab, f: Function) {
     const isCommuting = await storage.getItem(`local:commuting:${tab.id}`)
     if (lineIndex < length && isCommuting) {
+      // if animation should be played we set to false here else before going to next url
+      tabSkipStation.set(tab.id, false) 
       await secondLoopModeUpdate("leaving", tab)
       if (funMode) await secondLoopModeUpdate("commuting", tab)
       if (funMode) await secondLoopModeUpdate("arriving", tab)
       lineIndex++
+    
+      // reset tabSkipStation for next page
+      tabSkipStationNoAnimation.set(tab.id, false) 
       await f(lineIndex)
       await secondLoopModeUpdate("resting", tab)
       commutingCascade(length, tab, f)
@@ -131,7 +168,8 @@ export default defineBackground(() => {
 
   async function secondLoopModeUpdate(mode: "leaving" | "commuting" | "arriving" | "resting", tab: Browser.tabs.Tab, elapsedTime: number = 0) {
     const isCommuting = await storage.getItem(`local:commuting:${tab.id}`)
-    if (!isCommuting) return
+    const skipping = tabSkipStation.get(tab.id) || tabSkipStationNoAnimation.get(tab.id)
+    if (!isCommuting || skipping) return
     if (elapsedTime === 0) await storage.setItem(`local:mode:${tab.id}`, mode)
     return new Promise((resolve) => {
       setTimeout(async () => {
@@ -145,47 +183,6 @@ export default defineBackground(() => {
       }, 1000);
     })
   }
-
-
-  // async function secondLoopModeUpdate(mode: "leaving" | "commuting" | "arriving" | "resting", tab: Browser.tabs.Tab, elapsedTime: number = 0) {
-  //   if (!isCommuting || !tab.id) return
-  //   if (elapsedTime === 0) await browser.tabs.sendMessage(tab.id, { type: "modeUpdate", value: { mode }})
-  //   return new Promise((resolve) => {
-  //     setTimeout(async () => {
-  //       const time: number = modeTimes[mode]
-  //       if (!time) resolve("mode doesnt exist")
-  //       if (!tab.id) return
-  //       if (mode === "resting") await browser.tabs.sendMessage(tab.id, { type: "countdown", value: { time: time - elapsedTime }})
-  //       if (elapsedTime < time) {
-  //         await secondLoopModeUpdate(mode, tab, elapsedTime + 1000)
-  //       }
-  //       resolve("next")
-  //     }, 1000);
-  //   })
-  // }
-
-  // async function timeOutLoopArray(length: number, f: Function) {
-  //   lineIndex++
-
-  //   const delay = modeTimes.resting + (funMode ? modeTimes.commuting : 2000)
-
-  //   if (lineIndex < length && isCommuting) {
-  //     // the first station has to wait for the leaving animation to finish then navigate away
-  //     if(lineIndex === 0) {
-  //       setTimeout(async () => {
-  //         await f(lineIndex)
-  //         setTimeout(() => timeOutLoopArray(length, f), delay)
-  //       }, modeTimes.commuting)
-  //     } else {
-  //       await f(lineIndex)
-  //       setTimeout(() => timeOutLoopArray(length, f), delay)
-  //     }
-  //   } else {
-  //     await storage.setItem('local:commuting', false)
-  //     await storage.setItem('local:currentLine', null)
-  //     lineIndex = 0
-  //   }
-  // }
 
   
   // get blocks from arena channel and send response via messages
@@ -224,7 +221,7 @@ export default defineBackground(() => {
     const firstPromises: any[]= []
     const station = await getStationByUrl(message.value.url)
     console.log(station)
-    if (await storage.getItem('local:commuting') && tab.id) {
+    if (await storage.getItem(`local:commuting:${tab.id}`) && tab.id) {
       firstPromises.push(
         getCurrentStationLines(tab.id)
       )
