@@ -15,6 +15,7 @@
   const restingTime = ref<number>(10)
   const commuting = ref(false)
   const mode = ref<string>('')
+  const funMode = ref<boolean>(false)
 
   // ui refs
   const lineOpen = ref(false)
@@ -109,6 +110,7 @@
     line.value = await storage.getItem(`local:currentLine:${tabId.value}`)
     restingTime.value = await storage.getItem<number | null>(`local:restingTime:${tabId.value}`) || 10
     mode.value = await storage.getItem<string>(`local:mode:${tabId.value}`) || "idle"
+    funMode.value = await storage.getItem(`local:funMode`) || false
 
     console.log(mode.value, commuting.value, restingTime.value)
 
@@ -179,6 +181,10 @@
       if (newVal !== null) restingTime.value = newVal / 1000
     })
 
+    const funModeUnwatch = storage.watch('local:funMode', (newVal: boolean | null) => {
+      if (newVal !== null) funMode.value = newVal
+    })
+
     storageUnwatch.value = () => {
       currentLineUnwatch()
       commutingUnwatch()
@@ -211,16 +217,16 @@
 </script>
 
 <template>
-  <div class="container" id="web-extension-subway">
+  <div :class="{'container': true, 'full-height': ridingAnimation && funMode}" id="web-extension-subway">
     <!-- <div id="background" :class="{'leaving': leaving, 'arriving': arriving}" :style="`background-image: url('${getImgUrl('/svg/tunnel_plain.png')}')`">
       <template v-if="nextStation && nextStation.image">
         <img :src="nextStation.image.original.url" alt="">
       </template>
-    </div>
-    <div :class="{'doors': true, 'closed': leaving, 'opened': arriving}">
+    </div> -->
+    <!-- <div v-if="funMode" :class="{'doors': true, 'closed': mode === 'leaving', 'opened': mode === 'arriving'}">
       <img id="left-door" :src="getImgUrl('/svg/subway-left-door-tr.png')" alt="">
       <img id="right-door" :src="getImgUrl('/svg/subway-right-door-tr.png')" alt="">
-      <img id="interior" :src="getImgUrl('/svg/subway-interior-tr+fg.png')" alt="">
+      <img id="interior" :src="getImgUrl('/svg/subway-interior-tr.png')" alt="">
     </div> -->
     <template v-if="lineOpen || ridingAnimation">
       <LineDisplay :line="line" @start="dir => startRide(dir)" @close="() => lineOpen = false" :station-index="stationIndex" :commuting="commuting" :next-station-index="nextStationIndex"/>
@@ -255,6 +261,10 @@
   /* height: 100dvh; */
   z-index: 999;
   pointer-events: all;
+}
+
+.container.full-height {
+  height: 100%;
 }
 
 #background {

@@ -67,6 +67,8 @@ export default defineBackground(() => {
     if (newVal !== null) funMode = newVal
   })
 
+  storage.setItem('local:enabled', true)
+
   // storage.setItem('local:mode', "idle")
 
   // commuting value 
@@ -128,9 +130,9 @@ export default defineBackground(() => {
       }
       // depending on which direction we're going we cut the rest of the array and reverse it for going the other direction
       if (direction === 'forwards') {
-        stations = stations.slice(stationIndex + 1)
+        stations = stations.slice(stationIndex)
       } else {
-        stations = stations.slice(0, stationIndex).reverse()
+        stations = stations.slice(0, stationIndex + 1).reverse()
       }
     } else {
       // if we start from arena we only can go forwards or backwards through all stations

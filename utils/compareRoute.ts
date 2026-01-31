@@ -8,3 +8,18 @@ export function isSameRoute(url1: string, url2: string) {
     return false;
   }
 }
+
+export function convertToTime(value: number): string {
+  const seconds = value % 60
+  const minutes = Math.floor(value / 60)
+  const secondsString = pad(seconds)
+  const minutesString = pad(minutes)
+  return `${minutesString}:${secondsString}`
+}
+
+function pad(n: number): string {
+  if (n < 10) {
+    return '0' + n.toString()
+  }
+  return n.toString()
+}

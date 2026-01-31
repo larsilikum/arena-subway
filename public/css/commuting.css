@@ -1,37 +1,46 @@
 body:not(:has(#web-extension-subway)) {
-  /* transform: translateX(-100%); */
-  /* width: 200dvw; */
-  /* transition: 
-    transform 2s ease-in 2s
-    width 2s ease-in; */
+  /* transform: translateX(-100%);
+  width: 200dvw;
+  transition: 
+    transform 1.7s ease-in .3s
+    width .3s ease-in; */
 }
 
-body > div * {
+body * {
   /* transition-delay: 2s; */
   transition: transform 2s cubic-bezier(0.5, 0, 1, 0.5) !important;
 }
 
-body > *:nth-child(3n) {
-  transform: translateX(-100dvw) !important;
+body > *:nth-child(6n) {
+  transform: translateX(-300dvw) !important;
 }
 
-body > * > *:nth-child(3) {
-  transform: translateX(-10dvw) !important;
+
+body > *:nth-child(6n + 1) {
+  transform: translateX(-266dvw) !important;
 }
 
-body > *:nth-child(3n + 1) {
-  transform: translateX(-150dvw) !important;
-}
 
-body > * > *:nth-child(2) {
-  transform: translateX(-20dvw) !important;
+body > *:nth-child(6n + 2) {
+  transform: translateX(-233dvw) !important;
 }
-
-body > *:nth-child(3n + 2) {
+body > *:nth-child(6n + 3) {
   transform: translateX(-200dvw) !important;
 }
+body > *:nth-child(6n + 4) {
+  transform: translateX(-15dvw) !important;
+}
+body > *:nth-child(6n + 5) {
+  transform: translateX(-70dvw) !important;
+}
 
-body > * > *:nth-child(1) {
+body > * > *:nth-child(3n) {
+  transform: translateX(-70dvw) !important;
+}
+body > * > *:nth-child(3n + 1) {
+  transform: translateX(-50dvw) !important;
+}
+body > * > *:nth-child(3n + 2) {
   transform: translateX(-30dvw) !important;
 }
 

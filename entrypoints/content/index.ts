@@ -7,14 +7,29 @@ export default defineContentScript({
   matches: ["*://*/*"],
   cssInjectionMode: "ui",
   async main(ctx) {
-
+    let enabled = await storage.getItem('local:enabled')
+    
     const ui = await defineOverlay(ctx)
     cssShenanigans()
-
-    ui.mount()
+    
+    // only run content script when extension is enabled
+    if(enabled) {
+      ui.mount()
+    }
 
     ctx.addEventListener(window, "wxt:locationchange", _event => {
-      ui.mount()
+      if(enabled) ui.mount()
+    })
+
+    storage.watch('local:enabled', newVal => {
+      if (newVal !== null) {
+        enabled = newVal
+        if (newVal) {
+          ui.mount()
+        } else {
+          ui.remove()
+        }
+      }
     })
 
   }
@@ -77,7 +92,7 @@ function defineOverlay(ctx: ContentScriptContext) {
     name: "subway-overlay",
     position: "modal",
     zIndex: 999,
-    anchor: "body",
+    anchor: "html",
     onMount(container, _shadow, shadowHost) {
       const app = createApp(App)
       app.mount(container)
