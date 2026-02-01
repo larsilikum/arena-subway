@@ -49,6 +49,10 @@ import { convertToTime } from '@/utils/compareRoute'
   .header {
     display: flex;
     align-items: center;
+    margin-bottom: 1em;
+  }
+  label {
+    margin: 0;
   }
   #onoff {
     appearance: none;
@@ -64,13 +68,25 @@ import { convertToTime } from '@/utils/compareRoute'
     font-size: xx-large;
     width: 100%;
     transform: translateX(-100%);
+    cursor: pointer;
   }
   #onoff:checked::after {
     text-shadow: FieldText 0 0 5px;
   }
+  #onoff:hover::after {
+    text-shadow: Highlight 0 0 5px;
+  }
+  input[type="range"] {
+    height: 1em;
+    font-size: medium;
+  }
   .input-wrapper {
     display: flex;
+    align-items: center;
     gap: 1em;
+  }
+  .input-wrapper p {
+    margin: 0;
   }
   .popup {
     display: flex;
@@ -79,5 +95,6 @@ import { convertToTime } from '@/utils/compareRoute'
   }
   h1 {
     margin: 0;
+    font-weight: normal;
   }
 </style>

@@ -1,5 +1,6 @@
 <script lang="ts" setup>
   import LineDisplayStation from './LineDisplayStation.vue'
+  import CloseIcon from './CloseIcon.vue'
   const props = defineProps(['line', 'stationIndex', 'commuting', 'nextStationIndex'])
   const emit = defineEmits<{
     (e: 'start', value: string): void,
@@ -28,7 +29,7 @@
 
 <template>
   <div class="line">
-    <button id="close" @click="emit('close')">x</button>
+    <button id="close" @click="emit('close')"><CloseIcon/></button>
     <div class="left-column-top">
       <span class="line-abbr">{{ line.title.substring(0, 1) }}</span>
       <div>
@@ -57,22 +58,29 @@
 
 <style scoped>
 .line {
-  width: calc(100dvw - .8rem);
+  width: calc(100% - .8rem);
   position: relative;
   /* height: 400px; */
   display: grid;
   grid-template-columns: 1fr 1fr;
   column-gap: 1rem;
   background: Field;
-  padding: 1rem .4rem calc(1rem + 32px) .4rem;
+  padding: .4rem .4rem calc(1rem + 32px) .4rem;
   overflow-y: hidden;
   /* border-bottom: 2.5px solid var(--text-color); */
 }
 
 button#close {
   position: absolute;
-  right: 1rem;
-  top: 1rem;
+  right: .4rem;
+  top: .4rem;
+  width: 1.7em;
+  height: 1.7em;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: small;
 }
 
 .left-column-top {
@@ -82,7 +90,7 @@ button#close {
 
 h2 {
   position: relative;
-  margin: .25em 0 1rem 0;
+  margin: .35em 0 1rem 0;
   color: var(--text-color);
   font-weight: normal;
   font-size: x-large;
@@ -95,7 +103,7 @@ h2 {
 }
 
 .description {
-  margin: 0.5em 0;
+  margin: 1em 0;
   position: relative;
   max-width: 40em;
   padding-right: 1.5em;
@@ -107,7 +115,8 @@ h2 {
   background-color: v-bind(color);
   color: v-bind(textColor);
   width: 1.5em;
-  height: 1.5em;
+  height: 1.3em;
+  padding-top: .2em;
   margin-right: 1rem;
   border-radius: 50%;
   font-size: x-large;
@@ -182,7 +191,7 @@ button span {
   text-overflow: ellipsis;
 }
 
-button:hover {
+button:not(#close):hover {
   background-color: v-bind(color);
   border-color: v-bind(color);
   color: v-bind(textColor);

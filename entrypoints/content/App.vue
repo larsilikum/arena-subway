@@ -1,5 +1,7 @@
 <script lang="ts" setup>
   import LineDisplay from '@/components/LineDisplay.vue'
+  import NextIcon from '@/components/NextIcon.vue'
+  import CloseIcon from '@/components/CloseIcon.vue'
   import { ArenaChannel } from '@/types'
   import { isSameRoute } from '@/utils/compareRoute'
   import hashColor from '@/utils/hashColor'
@@ -163,7 +165,7 @@
     // queue animation if commuting
     if(commuting.value && direction) {
       setTimeout(() => {
-        if(line.value) rideAnimations(line.value, direction)
+        if(line.value && direction.value) rideAnimations(line.value, direction.value)
       }, restingTime.value * 1000)
     }
 
@@ -235,7 +237,10 @@
       <LineDisplay :line="line" @start="dir => startRide(dir)" @close="() => lineOpen = false" :station-index="stationIndex" :commuting="commuting" :next-station-index="nextStationIndex"/>
     </template>
     <header v-if="!ridingAnimation" :class="{'closed': !headerOpen}">
-      <button v-if="commuting && !ridingAnimation" @click="stopRide">leave</button>
+      <button id="leave-button" v-if="commuting && !ridingAnimation" @click="stopRide" title="stop ride"><div id="leave-icon"></div></button>
+      <button id="next-station-button" v-if="commuting && !ridingAnimation" @click="goToNextStation()" title="go to next site">
+        <NextIcon/>
+      </button>
       <p v-if="headerOpen" id="channel-label">channels:</p>
       <div v-if="!headerOpen" class="lines" id="lines-amount">
         <h5 class="line-abbr" @click="changeHeaderMode(true)">{{ lines.length }}<span>&ThickSpace;channels</span></h5>
@@ -247,9 +252,8 @@
           </div>
         </div>
       </template>
-      <button id="next-station-button" v-if="commuting && !ridingAnimation" @click="goToNextStation()">next</button>
-      <p v-if="commuting && !ridingAnimation" id="departure-time"><span v-if="headerOpen">departing in </span><span>{{ Math.floor(restingTime/60) }}:{{ restingTime%60 }}</span></p>
-      <button v-if="headerOpen" id="close-all" @click="changeHeaderMode(false)">x</button>
+      <p v-if="commuting && !ridingAnimation" id="departure-time"><span v-if="headerOpen">departing in </span><span>{{ convertToTime(restingTime) }}</span></p>
+      <button v-if="headerOpen" id="close-all" @click="changeHeaderMode(false)"><CloseIcon/></button>
     </header>
   </div>
 </template>
@@ -268,6 +272,21 @@
 
 .container.full-height {
   height: 100%;
+}
+
+#next-station-button, #leave-button, #close-all {
+  width: 1.7em;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#leave-icon {
+  flex-grow: 0;
+  height: 50%;
+  aspect-ratio: 1 / 1;
+  background-color: ButtonText;
 }
 
 #background {
@@ -320,14 +339,18 @@ header {
   max-width: calc(100dvw - .8rem);
   padding: 0 .4rem;
   display: grid;
-  grid-template-columns: min-content min-content minmax(0, 1fr) min-content max-content min-content;
-  gap: .4rem;
+  grid-template-columns: min-content min-content min-content minmax(0, 1fr) max-content min-content;
+  /* gap: .4rem; */
   background-color: Field;
   color: FieldText;
   height: 32px;
   font-size: medium;
   align-items: center;
   transition: width .5s ease-in-out;
+}
+
+header > *:not(:first-child) {
+  margin-left: .4em;
 }
 
 header.closed {
@@ -342,7 +365,7 @@ header.closed {
 #lines-amount {
   background-color: Highlight;
   cursor: pointer;
-  grid-column: 2 / 3;
+  grid-column: 3 / 4;
 }
 
 #lines-amount:hover {
@@ -360,7 +383,7 @@ header p {
 
 #channel-label {
   justify-self: end;
-  grid-column: 2 / 3;
+  grid-column: 3 / 4;
 }
 
 #departure-time {
@@ -382,7 +405,7 @@ header p {
   gap: .2rem;
   align-items: start;
   overflow-x: auto;
-  grid-column: 3 / 4;
+  grid-column: 4 / 5;
 }
  /* Hide scrollbar for Chrome, Safari and Opera */
 .lines-container::-webkit-scrollbar {
@@ -401,7 +424,7 @@ header p {
   line-height: 1.2;
   font-size: small;
   width: 1.5em;
-  height: 1.5em;
+  height: 1.3em;
   text-align: center;
   margin: 0;
   border-radius: .75em;
@@ -409,6 +432,7 @@ header p {
   flex-shrink: 0;
   justify-content: center;
   align-items: center;
+  padding-top: .2em;
   /* padding: .4em .3em .2em .3em; */
   cursor: pointer;
   transition: width .4s ease;
@@ -423,6 +447,7 @@ h5 {
   line-height: 1;
   font-size: medium;
   margin: 0;
+  font-weight: normal;
   white-space: nowrap;
 }
 

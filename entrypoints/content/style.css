@@ -41,6 +41,11 @@ button {
   padding: .3em .5em 0 .5em;
   cursor: pointer;
 }
+
+button:hover {
+  background-color: Highlight;
+  color: HighlightText;
+}
 /* 
 @media screen and (min-width: 1920px) {
   body {
