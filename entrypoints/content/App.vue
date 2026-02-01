@@ -10,6 +10,7 @@
   const line = ref<ArenaChannel | null>(null)
   const url = ref<string>('')
   const tabId = ref<number>(-1)
+  const direction = ref<string | null>(null)
       
   // storage values
   const restingTime = ref<number>(10)
@@ -25,7 +26,7 @@
   // indicator light values (LineDisplayStation)
   const stationIndex = computed<number>(() => {
     if(routeArenaChannel.value) return -1
-    return line.value?.contents?.findIndex((s: any) => isSameRoute(s.source?.url, window.location.href)) || -1
+    return line.value?.contents?.findIndex((s: any) => isSameRoute(s.source?.url, url.value)) || -1
   })
   const nextStationIndex = ref<number>(-1)
   const nextStation = ref<any>(null)
@@ -63,6 +64,7 @@
   })
 
   function goToNextStation() {
+    if (line.value && direction.value) rideAnimations(line.value, direction.value)
     browser.runtime.sendMessage({ type: "goToNextStation"})
   }
 
@@ -114,7 +116,7 @@
 
     console.log(mode.value, commuting.value, restingTime.value)
 
-    const direction = await storage.getItem<string | null>(`local:direction:${tabId.value}`) || null
+    direction.value = await storage.getItem<string | null>(`local:direction:${tabId.value}`) || null
 
     // get ui values from store
     const hOVal = await storage.getItem<boolean | null>('local:headerOpen')
@@ -190,6 +192,7 @@
       commutingUnwatch()
       modeUnwatch()
       remainingTimeUnwatch()
+      funModeUnwatch()
     }
   })
 
@@ -239,8 +242,8 @@
       </div>
       <template v-if="lines && headerOpen">
         <div class="lines-container">
-          <div v-for="l in lines" :class="{'lines': true, 'inactive': line && l.slug != line.slug && lineOpen }" :style="`background-color: ${hashColor.hashStringToColor(l.title).primary};`" @click="openLine(l.slug)">
-            <h5 class="line-abbr" :style="`color: ${hashColor.hashStringToColor(l.title).secondary};`">{{ l.title.substring(0,1) }}<span>{{ l.title.substring(1) }}</span></h5>
+          <div v-for="l in lines" :class="{'lines': true, 'inactive': line && l.slug != line.slug && lineOpen }" :style="`background-color: ${hashColor.hashStringToColor(l.slug).primary};`" @click="openLine(l.slug)">
+            <h5 class="line-abbr" :style="`color: ${hashColor.hashStringToColor(l.slug).secondary};`">{{ l.title.substring(0,1) }}<span>{{ l.title.substring(1) }}</span></h5>
           </div>
         </div>
       </template>

@@ -56,26 +56,41 @@ onMounted(() => {
 }
 
 .station .indicator {
+  position: relative;
   background: v-bind(color);
   width: 1em;
   height: 1em;
   border-radius: 50%;
 }
 
-.station .indicator.active {
-  background: radial-gradient(yellow, v-bind(color) 90%);
+.station .indicator.active::after {
+  content: '';
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  left: 0;
+  top: 0;
+  mix-blend-mode: difference;
+  background: radial-gradient(white 20%, transparent 70%);
 }
 
-.station .indicator.arriving-at {
+.station .indicator.arriving-at::after {
+  content: '';
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  left: 0;
+  top: 0;
+  mix-blend-mode: difference;
   animation: blinking .5s ease-in-out alternate infinite;
 }
 
 @keyframes blinking {
   from {
-    background: radial-gradient(v-bind(color));
+    background: radial-gradient(transparent);
   }
   to {
-    background: radial-gradient(yellow, v-bind(color) 90%);
+    background: radial-gradient(white 20%, transparent 70%);
   }
 }
 </style>

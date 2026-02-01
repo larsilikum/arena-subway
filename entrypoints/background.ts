@@ -149,7 +149,7 @@ export default defineBackground(() => {
 
   async function commutingCascade(length: number, tab: Browser.tabs.Tab, f: Function) {
     const isCommuting = await storage.getItem(`local:commuting:${tab.id}`)
-    if (lineIndex < length && isCommuting) {
+    if (lineIndex < length - 1 && isCommuting) {
       // if animation should be played we set to false here else before going to next url
       tabSkipStation.set(tab.id, false) 
       await secondLoopModeUpdate("leaving", tab)
@@ -160,10 +160,12 @@ export default defineBackground(() => {
       // reset tabSkipStation for next page
       tabSkipStationNoAnimation.set(tab.id, false) 
       await f(lineIndex)
-      await secondLoopModeUpdate("resting", tab)
+      if(lineIndex !== length - 1) await secondLoopModeUpdate("resting", tab)
       commutingCascade(length, tab, f)
     } else {
+      lineIndex = 0
       await storage.setItem(`local:mode:${tab.id}`, "idle")
+      await storage.setItem(`local:commuting:${tab.id}`, false)
       return
     }
   }

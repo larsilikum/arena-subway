@@ -2,7 +2,7 @@ import { defineConfig } from 'wxt';
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
-  modules: ['@wxt-dev/module-vue'],
+  modules: ['@wxt-dev/module-vue','@wxt-dev/auto-icons'],
   manifest: {
     permissions: ['storage', 'theme', 'webRequest'],
     web_accessible_resources: [
@@ -10,5 +10,8 @@ export default defineConfig({
       { resources: ["svg/*"], matches: ["*://*/*"]},
       { resources: ["css/*"], matches: ["*://*/*"]},
     ],
-  }
+  },
+  autoIcons: {
+    baseIconPath: './assets/icon.svg'
+  },
 });

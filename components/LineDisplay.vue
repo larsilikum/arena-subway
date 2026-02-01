@@ -8,12 +8,12 @@
   const url = ref<string>('')
   const color = computed<string>(() => {
     if (!props.line) return '#000'
-    return hashColor.hashStringToColor(props.line.title).primary
+    return hashColor.hashStringToColor(props.line.slug).primary
   })
 
   const textColor = computed<string>(() => {
     if (!props.line) return '#fff'
-    return hashColor.hashStringToColor(props.line.title).secondary
+    return hashColor.hashStringToColor(props.line.slug).secondary
   })
 
   const filteredContents = computed(() => {
