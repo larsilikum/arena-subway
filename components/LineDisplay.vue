@@ -34,9 +34,11 @@
       <span class="line-abbr">{{ line.title.substring(0, 1) }}</span>
       <div>
         <h2>{{ line.title }}</h2>
-        <p id="author" v-if="line.user">by: {{ line.user.username }}</p>
-        <a id="channel-link" :href="`https://www.are.na/${line.user.slug}/${line.slug}`">are.na channel</a>
       </div>
+    </div>
+    <div class="author-link">
+      <p id="author" v-if="line.user">by: {{ line.user.username }}</p>
+      <a id="channel-link" :href="`https://www.are.na/${line.user.slug}/${line.slug}`">are.na channel</a>
     </div>
     <div class="metadata">
       <p v-if="line.metadata && line.metadata.description != ''" class="description">{{ line.metadata.description }}</p>
@@ -49,10 +51,7 @@
         </template> 
       </div>
     </div>
-    <div class="button-container" v-if="!commuting">
-      <button v-if="stationIndex > 0" @click="emit('start', 'backwards')">← <span>{{ filteredContents[0].title }}</span></button>
-      <button v-if="stationIndex < line.length - 1" @click="emit('start', 'forwards')"><span>{{ filteredContents[filteredContents.length - 1].title }}</span> →</button>
-    </div>
+   
   </div>
 </template>
 
@@ -62,10 +61,10 @@
   position: relative;
   /* height: 400px; */
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  column-gap: 1rem;
+  grid-template-columns: auto 1fr 50%;
+  column-gap: 2rem;
   background: Field;
-  padding: .4rem .4rem calc(1rem + 32px) .4rem;
+  padding: .4rem .4rem 32px .4rem;
   overflow-y: hidden;
   /* border-bottom: 2.5px solid var(--text-color); */
 }
@@ -111,6 +110,10 @@ h2 {
   font-size: small;
 }
 
+.author-link {
+  margin: 1em 0;
+}
+
 .line-abbr {
   background-color: v-bind(color);
   color: v-bind(textColor);
@@ -124,14 +127,6 @@ h2 {
   display: flex;
   justify-content: center;
   align-items: center;
-}
-
-.button-container {
-  position: relative;
-  display: flex;
-  grid-column: span 2;
-  justify-content: center;
-  gap: 1rem;
 }
 
 #stations-line {
@@ -152,11 +147,11 @@ h2 {
   scrollbar-width: thin;
   display: flex;
   align-items: end;
-  grid-column: span 2;
+  grid-column: span 3;
   font-size: medium;
   height: 10em;
   padding-bottom: .5em;
-  margin-bottom: .5em;
+  /* margin-bottom: .5em; */
 }
 
  /* Hide scrollbar for Chrome, Safari and Opera */
@@ -189,11 +184,5 @@ button span {
   white-space: nowrap;
   display: inline-block;
   text-overflow: ellipsis;
-}
-
-button:not(#close):hover {
-  background-color: v-bind(color);
-  border-color: v-bind(color);
-  color: v-bind(textColor);
 }
 </style>

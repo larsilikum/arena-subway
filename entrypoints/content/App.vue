@@ -2,7 +2,7 @@
   import LineDisplay from '@/components/LineDisplay.vue'
   import NextIcon from '@/components/NextIcon.vue'
   import CloseIcon from '@/components/CloseIcon.vue'
-  import { ArenaChannel } from '@/types'
+  import { ArenaBlock, ArenaChannel, Station } from '@/types'
   import { isSameRoute } from '@/utils/compareRoute'
   import hashColor from '@/utils/hashColor'
   import { PublicPath } from 'wxt/browser'
@@ -32,7 +32,12 @@
   })
   const nextStationIndex = ref<number>(-1)
   const nextStation = ref<any>(null)
-  
+
+  const filteredContents = computed(() => {
+    if (!line.value || !line.value.contents) return []
+    return line.value.contents.filter((c: ArenaChannel | ArenaBlock) => c.class === 'Link')
+  })
+
   // =========================== commuting functions ====================================
   async function startRide(direction: string) {
     const rawLine = line.value ? structuredClone(JSON.parse(JSON.stringify(line.value))) : null
@@ -57,7 +62,6 @@
     
     // set nextStation to trigger blinking light in LineDisplayStation
     nextStationIndex.value = direction === 'forwards' ? stationIndex.value + 1 : stationIndex.value - 1
-    console.log(nextStationIndex.value, stationIndex.value)
     if(line.contents) nextStation.value = line.contents[nextStationIndex.value]
   }
 
@@ -252,6 +256,10 @@
           </div>
         </div>
       </template>
+      <div class="button-container" v-if="!commuting && line && lineOpen">
+        <button v-if="stationIndex > 0" @click="startRide('backwards')"><NextIcon class="next-icon backwards"/> <span v-if="'generated_title' in filteredContents[0]">{{ filteredContents[0].generated_title }}</span></button>
+        <button v-if="stationIndex < line.length - 1" @click="startRide('forwards')"><span v-if="'generated_title' in filteredContents[filteredContents.length - 1]">{{ filteredContents[filteredContents.length - 1].generated_title }}</span> <NextIcon class="next-icon"/></button>
+      </div>
       <p v-if="commuting && !ridingAnimation" id="departure-time"><span v-if="headerOpen">departing in </span><span>{{ convertToTime(restingTime) }}</span></p>
       <button v-if="headerOpen" id="close-all" @click="changeHeaderMode(false)"><CloseIcon/></button>
     </header>
@@ -360,6 +368,32 @@ header.closed {
   width: 2em;
   min-width: min-content;
   border-top-right-radius: 16px;
+}
+
+.button-container {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  gap: .4em;
+}
+
+button span {
+  max-width: 15em;
+  height: 1.5em;
+  overflow: hidden;
+  white-space: nowrap;
+  display: inline-block;
+  text-overflow: ellipsis;
+}
+
+button .next-icon {
+  max-width: 1.5em;
+  margin-left: 0;
+}
+
+button .next-icon.backwards {
+  transform-origin: center;
+  transform: rotate(-180deg)
 }
 
 #lines-amount {

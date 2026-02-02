@@ -49,7 +49,7 @@ onMounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 10rem;
+  max-width: 15em;
   width: min-content;
   font-weight: normal;
   line-height: 0.9;
