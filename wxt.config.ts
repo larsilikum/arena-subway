@@ -4,7 +4,7 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   modules: ['@wxt-dev/module-vue','@wxt-dev/auto-icons'],
   manifest: {
-    permissions: ['storage', 'theme', 'webRequest'],
+    permissions: ['storage', 'webRequest'],
     web_accessible_resources: [
       { resources: ["fonts/*"], matches: ["*://*/*"]},
       { resources: ["svg/*"], matches: ["*://*/*"]},

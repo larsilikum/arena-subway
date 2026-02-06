@@ -3,6 +3,7 @@ const props = defineProps<{
   station: any,
   url: string,
   color: string,
+  textColor: string,
   index: string | number,
   stationIndex: number,
   nextStationIndex: number,
@@ -19,9 +20,9 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="station" ref="stationEl">
+  <div :class="{'station': true, 'active': stationIndex === index && nextStationIndex < 0, 'arriving-at': nextStationIndex === index && commuting}" ref="stationEl">
     <h5 ref="stationTitle">{{ station.generated_title }}</h5>
-    <div :class="{'indicator': true, 'active': stationIndex === index && nextStationIndex < 0, 'arriving-at': nextStationIndex === index && commuting}"></div>
+    <div class="indicator"></div>
   </div>
 </template>
 
@@ -31,6 +32,12 @@ onMounted(() => {
   overflow: visible;
   position: relative;
   margin-left: 4em;
+}
+
+.station.active h5 {
+  background-color: v-bind(color);
+  color: v-bind(textColor);
+  /* border-radius: .5em; */
 }
 
 .station:first-of-type {
@@ -44,6 +51,7 @@ onMounted(() => {
   display: block;
   font-size: medium;
   margin: 0;
+  padding: .2em;
   transform-origin: 0 100%;
   transform: rotate(-30deg) translate(.5em, .2em);
   white-space: nowrap;
@@ -63,7 +71,7 @@ onMounted(() => {
   border-radius: 50%;
 }
 
-.station .indicator.active::after {
+.station.active .indicator::after {
   content: '';
   width: 100%;
   height: 100%;
@@ -74,7 +82,7 @@ onMounted(() => {
   background: radial-gradient(white 20%, transparent 70%);
 }
 
-.station .indicator.arriving-at::after {
+.station.arriving-at .indicator::after {
   content: '';
   width: 100%;
   height: 100%;

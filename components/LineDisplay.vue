@@ -1,9 +1,9 @@
 <script lang="ts" setup>
   import LineDisplayStation from './LineDisplayStation.vue'
+  import HorizontalScroll from './HorizontalScroll.vue'
   import CloseIcon from './CloseIcon.vue'
   const props = defineProps(['line', 'stationIndex', 'commuting', 'nextStationIndex'])
-  const emit = defineEmits<{
-    (e: 'start', value: string): void,
+  const emits = defineEmits<{
     (e: 'close'): void,
   }>()
   const url = ref<string>('')
@@ -25,11 +25,20 @@
   onMounted(() => {
     url.value = window.location.href
   })
+
+  const closed = ref<boolean>(false)
+
+  function handleClick() {
+    closed.value = true
+    setTimeout(() => {
+      emits('close')
+    }, 300)
+  }
 </script>
 
 <template>
-  <div class="line">
-    <button id="close" @click="emit('close')"><CloseIcon/></button>
+  <div :class="{ 'line': true, 'closed': closed}">
+    <button id="close" @click="handleClick()"><CloseIcon/></button>
     <div class="left-column-top">
       <span class="line-abbr">{{ line.title.substring(0, 1) }}</span>
       <div>
@@ -43,15 +52,14 @@
     <div class="metadata">
       <p v-if="line.metadata && line.metadata.description != ''" class="description">{{ line.metadata.description }}</p>
     </div>
-    <div class="stations">
+    <HorizontalScroll class="stations">
       <div class="stations-container">
         <hr id="stations-line"/>
         <template v-for="(station, i) in filteredContents">
-          <LineDisplayStation :station="station" :url="url" :color="color" :commuting="commuting" :station-index="stationIndex" :index="i" :next-station-index="nextStationIndex"/>
+          <LineDisplayStation :station="station" :url="url" :color="color" :text-color="textColor" :commuting="commuting" :station-index="stationIndex" :index="i" :next-station-index="nextStationIndex"/>
         </template> 
       </div>
-    </div>
-   
+    </HorizontalScroll>   
   </div>
 </template>
 
@@ -66,7 +74,24 @@
   background: Field;
   padding: .4rem .4rem 32px .4rem;
   overflow-y: hidden;
+  animation: appear .3s ease-out;
+  transform: translateY(0);
+  transition: transform .3s ease-in;
   /* border-bottom: 2.5px solid var(--text-color); */
+}
+
+.line.closed {
+  animation: none;
+  transform: translateY(100%);
+}
+
+@keyframes appear {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
 }
 
 button#close {
@@ -117,6 +142,7 @@ h2 {
 .line-abbr {
   background-color: v-bind(color);
   color: v-bind(textColor);
+  border: .05em solid v-bind(textColor);
   width: 1.5em;
   height: 1.3em;
   padding-top: .2em;
@@ -142,9 +168,6 @@ h2 {
 }
 
 .stations {
-  overflow-x: auto;
-  scrollbar-color: white var(--text-color);
-  scrollbar-width: thin;
   display: flex;
   align-items: end;
   grid-column: span 3;
@@ -154,16 +177,7 @@ h2 {
   /* margin-bottom: .5em; */
 }
 
- /* Hide scrollbar for Chrome, Safari and Opera */
-.stations::-webkit-scrollbar {
-  display: none;
-}
 
-/* Hide scrollbar for IE, Edge and Firefox */
-.stations {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
-} 
 
 .stations-container {
   width: max-content;

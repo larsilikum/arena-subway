@@ -4,7 +4,7 @@ import { convertToTime } from '@/utils/compareRoute'
   const restVal = ref<number>(30)
   const commVal = ref<number>(10)
   const funMode = ref<boolean>(false)
-  const enabled = ref<boolean>(true)
+  const enabled = ref<boolean>(false)
   function setStorage(key: string, value: number | boolean) {
     console.log('set value', key, value)
     storage.setItem(`local:${key}`, value)
@@ -14,7 +14,7 @@ import { convertToTime } from '@/utils/compareRoute'
     commVal.value = await storage.getItem<number | null>('local:commutingTime') || 10
     funMode.value = await storage.getItem<boolean | null>('local:funMode') || false
     const localEnabled = await storage.getItem<boolean | null>('local:enabled')
-    enabled.value = localEnabled !== null ? localEnabled : true
+    enabled.value = localEnabled !== null ? localEnabled : false
   })
 </script>
 

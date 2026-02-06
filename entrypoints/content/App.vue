@@ -2,14 +2,17 @@
   import LineDisplay from '@/components/LineDisplay.vue'
   import NextIcon from '@/components/NextIcon.vue'
   import CloseIcon from '@/components/CloseIcon.vue'
+  import LineAbbreviation from '@/components/LineAbbreviation.vue'
+  import HorizontalScroll from '@/components/HorizontalScroll.vue'
+  import ColoredPill from '@/components/ColoredPill.vue'
   import { ArenaBlock, ArenaChannel, Station } from '@/types'
   import { isSameRoute } from '@/utils/compareRoute'
-  import hashColor from '@/utils/hashColor'
   import { PublicPath } from 'wxt/browser'
 
   // data
   const lines = ref<ArenaChannel[]>([])
-  const line = ref<ArenaChannel | null>(null)
+  const commutingLine = ref<ArenaChannel | null>(null)
+  const displayLine = ref<ArenaChannel | null>(null)
   const url = ref<string>('')
   const tabId = ref<number>(-1)
   const direction = ref<string | null>(null)
@@ -21,36 +24,33 @@
   const funMode = ref<boolean>(false)
 
   // ui refs
-  const lineOpen = ref(false)
   const headerOpen = ref(true)
   const routeArenaChannel = ref(false)
     
   // indicator light values (LineDisplayStation)
   const stationIndex = computed<number>(() => {
     if(routeArenaChannel.value) return -1
-    return line.value?.contents?.findIndex((s: any) => isSameRoute(s.source?.url, url.value)) || -1
+    return displayLine.value?.contents?.findIndex((s: any) => isSameRoute(s.source?.url, url.value)) || -1
   })
+
   const nextStationIndex = ref<number>(-1)
   const nextStation = ref<any>(null)
 
-  const filteredContents = computed(() => {
-    if (!line.value || !line.value.contents) return []
-    return line.value.contents.filter((c: ArenaChannel | ArenaBlock) => c.class === 'Link')
-  })
-
   // =========================== commuting functions ====================================
   async function startRide(direction: string) {
-    const rawLine = line.value ? structuredClone(JSON.parse(JSON.stringify(line.value))) : null
-    const rawFromArena = structuredClone(JSON.parse(JSON.stringify(routeArenaChannel.value)))
-    const rawUrl = window.location.href
+    // convert to raw for firefox; should be obsolete, was my mistake as i forgot to use the native $emit function
+    // send the displayed line to background script
+    // const rawLine = displayLine.value ? structuredClone(JSON.parse(JSON.stringify(displayLine.value))) : null
+    // const rawFromArena = structuredClone(JSON.parse(JSON.stringify(routeArenaChannel.value)))
+    // const rawUrl = window.location.href
     await browser.runtime.sendMessage({ type: "start", value: { 
-      line: rawLine, 
-      url: rawUrl, 
+      line: displayLine.value, 
+      url: window.location.href, 
       direction, 
-      fromArena: rawFromArena }})
-    // commuting.value = true
-
-    if(line.value) await rideAnimations(rawLine, direction)
+      fromArena: routeArenaChannel.value }})
+    
+    // commuting line should now contain the displayLine sent to background and stored there.
+    if(commutingLine.value) await rideAnimations(commutingLine.value, direction)
   }
 
   async function stopRide() {
@@ -59,7 +59,10 @@
   
   async function rideAnimations(line: ArenaChannel, direction: string) {
     if(!commuting.value) return
-    
+
+    // change displayLine to display the current commutingLine
+    displayLine.value = commutingLine.value
+
     // set nextStation to trigger blinking light in LineDisplayStation
     nextStationIndex.value = direction === 'forwards' ? stationIndex.value + 1 : stationIndex.value - 1
     if(line.contents) nextStation.value = line.contents[nextStationIndex.value]
@@ -70,15 +73,13 @@
   })
 
   function goToNextStation() {
-    if (line.value && direction.value) rideAnimations(line.value, direction.value)
+    if (commutingLine.value && direction.value) rideAnimations(commutingLine.value, direction.value)
     browser.runtime.sendMessage({ type: "goToNextStation"})
   }
 
   // ============================================ ui functions ======================================
   async function openLine(slug: string) {
-    lineOpen.value = true
-
-    if (line.value?.slug === slug) return
+    if (displayLine.value?.slug === slug) return
 
     const currentLine = lines.value.find(l => l.slug === slug)
     if (!currentLine) {
@@ -86,16 +87,15 @@
       return
     }
 
-    line.value = currentLine
+    displayLine.value = currentLine
 
     if (currentLine.contents?.length != currentLine.length) {
-      line.value.contents = (await browser.runtime.sendMessage({ type: "getLineContents", value: {
+      displayLine.value.contents = (await browser.runtime.sendMessage({ type: "getLineContents", value: {
         slug,
         length: currentLine.length,
       } }))
     }
-    line.value.contents = line.value.contents?.filter((s: any) => s.class === 'Link')
-    console.log(line.value)
+    displayLine.value.contents = displayLine.value.contents?.filter((s: any) => s.class === 'Link')
   }
 
   // header display mode functionality
@@ -115,12 +115,10 @@
 
     // get commuting values from store
     commuting.value = await storage.getItem(`local:commuting:${tabId.value}`) || false
-    line.value = await storage.getItem(`local:currentLine:${tabId.value}`)
+    commutingLine.value = await storage.getItem(`local:currentLine:${tabId.value}`)
     restingTime.value = await storage.getItem<number | null>(`local:restingTime:${tabId.value}`) || 10
     mode.value = await storage.getItem<string>(`local:mode:${tabId.value}`) || "idle"
     funMode.value = await storage.getItem(`local:funMode`) || false
-
-    console.log(mode.value, commuting.value, restingTime.value)
 
     direction.value = await storage.getItem<string | null>(`local:direction:${tabId.value}`) || null
 
@@ -156,11 +154,12 @@
     // when receiving stations from call add them to lines array
     browser.runtime.onMessage.addListener((message) => {
       if (message.type === "channelsReceived") {
-        console.log("received channels", message.channels)
+        // console.log("received channels", message.channels) // for debugging
         // deduplicate channels
         const all = [...message.channels, ...lines.value]
         const linesMap = new Map(all.map(c => [c.id || c.slug, c]))
-        lines.value = Array.from(linesMap.values())
+        // too long lines will take more than our max requests
+        lines.value = Array.from(linesMap.values()).filter(l => l.length < 1500)
       } else if (message.type === "arenaChannelReceived") {
         lines.value = [message.value.channel]
       }
@@ -169,12 +168,12 @@
     // queue animation if commuting
     if(commuting.value && direction) {
       setTimeout(() => {
-        if(line.value && direction.value) rideAnimations(line.value, direction.value)
+        if(commutingLine.value && direction.value) rideAnimations(commutingLine.value, direction.value)
       }, restingTime.value * 1000)
     }
 
     const currentLineUnwatch = storage.watch(`local:currentLine:${tabId.value}`, (newVal: any | null) => {
-      line.value = newVal
+      commutingLine.value = newVal
     })
 
     const commutingUnwatch = storage.watch(`local:commuting:${tabId.value}`, (newVal: boolean | null) => {
@@ -237,30 +236,39 @@
       <img id="right-door" :src="getImgUrl('/svg/subway-right-door-tr.png')" alt="">
       <img id="interior" :src="getImgUrl('/svg/subway-interior-tr.png')" alt="">
     </div> -->
-    <template v-if="lineOpen || ridingAnimation">
-      <LineDisplay :line="line" @start="dir => startRide(dir)" @close="() => lineOpen = false" :station-index="stationIndex" :commuting="commuting" :next-station-index="nextStationIndex"/>
+
+    <!-- The Component rendering the current Line or a Line preview -->
+    <template v-if="displayLine || ridingAnimation">
+      <LineDisplay :line="displayLine" @close="() => displayLine = null" :station-index="stationIndex" :commuting="commuting" :next-station-index="nextStationIndex"/>
     </template>
+
+    <!-- The Bar at the bottom of the screen -->
     <header v-if="!ridingAnimation" :class="{'closed': !headerOpen}">
+      <!-- The Current Line when on a subway -->
+      <LineAbbreviation v-if="commuting && commutingLine" :line="commutingLine" :inactive="false" @open="slug => openLine(slug)" />
+      <!-- Action Buttons for when commuting -->
       <button id="leave-button" v-if="commuting && !ridingAnimation" @click="stopRide" title="stop ride"><div id="leave-icon"></div></button>
       <button id="next-station-button" v-if="commuting && !ridingAnimation" @click="goToNextStation()" title="go to next site">
         <NextIcon/>
       </button>
-      <p v-if="headerOpen" id="channel-label">channels:</p>
-      <div v-if="!headerOpen" class="lines" id="lines-amount">
-        <h5 class="line-abbr" @click="changeHeaderMode(true)">{{ lines.length }}<span>&ThickSpace;channels</span></h5>
-      </div>
-      <template v-if="lines && headerOpen">
-        <div class="lines-container">
-          <div v-for="l in lines" :class="{'lines': true, 'inactive': line && l.slug != line.slug && lineOpen }" :style="`background-color: ${hashColor.hashStringToColor(l.slug).primary};`" @click="openLine(l.slug)">
-            <h5 class="line-abbr" :style="`color: ${hashColor.hashStringToColor(l.slug).secondary};`">{{ l.title.substring(0,1) }}<span>{{ l.title.substring(1) }}</span></h5>
-          </div>
-        </div>
+      <!-- The channels for this webpage -->
+      <ColoredPill id="lines-amount" v-if="!headerOpen" @click="changeHeaderMode(true)" :bg-color="'Highlight'" :text-color="'HighlightText'" :abbr="`${lines.length}`" :rest-text="'&ThickSpace;channels'" />
+      <template v-else>
+        <p id="channel-label">channels:</p>
+        <template v-if="lines">
+          <HorizontalScroll class="lines-container">
+            <LineAbbreviation v-for="l in lines" :inactive="!!displayLine && l.slug != displayLine.slug" :line="l" @open="slug => openLine(slug)"/>
+          </HorizontalScroll>
+        </template>
       </template>
-      <div class="button-container" v-if="!commuting && line && lineOpen">
-        <button v-if="stationIndex > 0" @click="startRide('backwards')"><NextIcon class="next-icon backwards"/> <span v-if="'generated_title' in filteredContents[0]">{{ filteredContents[0].generated_title }}</span></button>
-        <button v-if="stationIndex < line.length - 1" @click="startRide('forwards')"><span v-if="'generated_title' in filteredContents[filteredContents.length - 1]">{{ filteredContents[filteredContents.length - 1].generated_title }}</span> <NextIcon class="next-icon"/></button>
+      <!-- Buttons enabling to start a ride towards the start or end of the channel -->
+      <div class="button-container" v-if="!commuting && displayLine && stationIndex >= 0 && displayLine.contents">
+        <button v-if="stationIndex > 0" @click="startRide('backwards')"><NextIcon class="next-icon backwards"/> <span>{{ displayLine.contents[0].title }}</span></button>
+        <button v-if="stationIndex < displayLine.length - 1 && displayLine.length > 0" @click="startRide('forwards')"><span>{{ displayLine.contents[displayLine.contents.length - 1].title }}</span> <NextIcon class="next-icon"/></button>
       </div>
+      <!-- The Countdown till we're going to the next station -->
       <p v-if="commuting && !ridingAnimation" id="departure-time"><span v-if="headerOpen">departing in </span><span>{{ convertToTime(restingTime) }}</span></p>
+      <!-- Close Header Button -->
       <button v-if="headerOpen" id="close-all" @click="changeHeaderMode(false)"><CloseIcon/></button>
     </header>
   </div>
@@ -347,14 +355,14 @@ header {
   max-width: calc(100dvw - .8rem);
   padding: 0 .4rem;
   display: grid;
-  grid-template-columns: min-content min-content min-content minmax(0, 1fr) max-content min-content;
+  grid-template-columns: repeat(4, min-content) minmax(0, 1fr) max-content min-content;
   /* gap: .4rem; */
   background-color: Field;
   color: FieldText;
   height: 32px;
   font-size: medium;
   align-items: center;
-  transition: width .5s ease-in-out;
+  transition: width .3s ease-in-out;
 }
 
 header > *:not(:first-child) {
@@ -364,7 +372,7 @@ header > *:not(:first-child) {
 header.closed {
   /* left: 50%;
   transform: translateX(-50%); */
-  grid-template-columns: repeat(4, auto);
+  grid-template-columns: repeat(5, auto);
   width: 2em;
   min-width: min-content;
   border-top-right-radius: 16px;
@@ -395,12 +403,10 @@ button .next-icon.backwards {
   transform-origin: center;
   transform: rotate(-180deg)
 }
-
+/* 
 #lines-amount {
-  background-color: Highlight;
-  cursor: pointer;
   grid-column: 3 / 4;
-}
+} */
 
 #lines-amount:hover {
   width: 15ch;
@@ -417,7 +423,7 @@ header p {
 
 #channel-label {
   justify-self: end;
-  grid-column: 3 / 4;
+  grid-column: 4 / 5;
 }
 
 #departure-time {
@@ -425,7 +431,7 @@ header p {
 }
 
 #close-all {
-  grid-column: 6 / 7;
+  grid-column: 7 / 8;
 }
 
 .lines-container {
@@ -438,84 +444,7 @@ header p {
   display: flex;
   gap: .2rem;
   align-items: start;
-  overflow-x: auto;
-  grid-column: 4 / 5;
-}
- /* Hide scrollbar for Chrome, Safari and Opera */
-.lines-container::-webkit-scrollbar {
-  display: none;
-}
-
-/* Hide scrollbar for IE, Edge and Firefox */
-.lines-container {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
-} 
-
-
-.lines {
-  position: relative;
-  line-height: 1.2;
-  font-size: small;
-  width: 1.5em;
-  height: 1.3em;
-  text-align: center;
-  margin: 0;
-  border-radius: .75em;
-  display: flex;
-  flex-shrink: 0;
-  justify-content: center;
-  align-items: center;
-  padding-top: .2em;
-  /* padding: .4em .3em .2em .3em; */
-  cursor: pointer;
-  transition: width .4s ease;
-  overflow: hidden;
-}
-
-.lines.inactive:not(:hover) {
-  filter: grayscale();
-}
-
-h5 {
-  line-height: 1;
-  font-size: medium;
-  margin: 0;
-  font-weight: normal;
-  white-space: nowrap;
-}
-
-.line-abbr {
-  color: white;
-  /* mix-blend-mode: difference; */
-}
-
-.line-abbr span {
-  display: none;
-}
-
-.lines:hover .line-abbr {
-  animation: marquee 2s alternate ease-in-out infinite;
-  transform-origin: 0 0;
-}
-
-.lines:hover span {
-  display: inline-block;
-}
-
-.lines:hover {
-  width: 5rem;
-  justify-content: start;
-  padding-inline: .3em;
-}
-
-@keyframes marquee {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(calc(-100% + 5rem));
-  }
+  grid-column: 5 / 6;
 }
 
 .doors {
