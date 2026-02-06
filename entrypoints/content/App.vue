@@ -33,39 +33,48 @@
     return displayLine.value?.contents?.findIndex((s: any) => isSameRoute(s.source?.url, url.value)) || -1
   })
 
-  const nextStationIndex = ref<number>(-1)
-  const nextStation = ref<any>(null)
+  const nextStationIndex = computed<number>(() => {
+    if (stationIndex.value < 0 || !direction.value || !commutingLine.value || !ridingAnimation.value) return -1
+    if (direction.value === 'forwards') {
+      return Math.min(stationIndex.value + 1, commutingLine.value.length - 1)
+    }
+    return Math.max(0, stationIndex.value - 1)
+  })
+
+  // const nextStation = computed<ArenaBlock | ArenaChannel | null>(() => {
+  //   if (nextStationIndex.value < 0) return null
+  //   return commutingLine.value?.contents ? commutingLine.value.contents[nextStationIndex.value] : null
+  // })
 
   // =========================== commuting functions ====================================
-  async function startRide(direction: string) {
+  async function startRide(dir: string) {
     // convert to raw for firefox; should be obsolete, was my mistake as i forgot to use the native $emit function
-    // send the displayed line to background script
     // const rawLine = displayLine.value ? structuredClone(JSON.parse(JSON.stringify(displayLine.value))) : null
     // const rawFromArena = structuredClone(JSON.parse(JSON.stringify(routeArenaChannel.value)))
     // const rawUrl = window.location.href
+
+    // send the displayed line to background script
     await browser.runtime.sendMessage({ type: "start", value: { 
       line: displayLine.value, 
       url: window.location.href, 
-      direction, 
+      direction: dir, 
       fromArena: routeArenaChannel.value }})
+
+    direction.value = dir
     
     // commuting line should now contain the displayLine sent to background and stored there.
-    if(commutingLine.value) await rideAnimations(commutingLine.value, direction)
+    if(commutingLine.value) await rideAnimations()
   }
 
   async function stopRide() {
     await storage.setItem(`local:commuting:${tabId.value}`, false)
   }
   
-  async function rideAnimations(line: ArenaChannel, direction: string) {
+  async function rideAnimations() {
     if(!commuting.value) return
 
     // change displayLine to display the current commutingLine
     displayLine.value = commutingLine.value
-
-    // set nextStation to trigger blinking light in LineDisplayStation
-    nextStationIndex.value = direction === 'forwards' ? stationIndex.value + 1 : stationIndex.value - 1
-    if(line.contents) nextStation.value = line.contents[nextStationIndex.value]
   }
 
   const ridingAnimation = computed<boolean>(() => {
@@ -73,7 +82,7 @@
   })
 
   function goToNextStation() {
-    if (commutingLine.value && direction.value) rideAnimations(commutingLine.value, direction.value)
+    if (commutingLine.value && direction.value) rideAnimations()
     browser.runtime.sendMessage({ type: "goToNextStation"})
   }
 
@@ -168,7 +177,7 @@
     // queue animation if commuting
     if(commuting.value && direction) {
       setTimeout(() => {
-        if(commutingLine.value && direction.value) rideAnimations(commutingLine.value, direction.value)
+        if(commutingLine.value && direction.value) rideAnimations()
       }, restingTime.value * 1000)
     }
 
