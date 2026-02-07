@@ -24,7 +24,7 @@
   const funMode = ref<boolean>(false)
 
   // ui refs
-  const headerOpen = ref(true)
+  const headerOpen = ref<boolean | null>(null)
   const routeArenaChannel = ref(false)
     
   // indicator light values (LineDisplayStation)
@@ -63,16 +63,14 @@
     direction.value = dir
     
     // commuting line should now contain the displayLine sent to background and stored there.
-    if(commutingLine.value) await rideAnimations()
+    if(commutingLine.value) rideAnimations()
   }
 
   async function stopRide() {
     await storage.setItem(`local:commuting:${tabId.value}`, false)
   }
   
-  async function rideAnimations() {
-    if(!commuting.value) return
-
+  function rideAnimations() {
     // change displayLine to display the current commutingLine
     displayLine.value = commutingLine.value
   }
@@ -118,6 +116,10 @@
   const storageUnwatch = ref<Function>(() => {})
   
   onMounted(async () => {
+    // get ui values from store
+    const hOVal = await storage.getItem<boolean | null>('local:headerOpen')
+    headerOpen.value = hOVal !== null ? hOVal : true
+
     // get tabId
     tabId.value = await browser.runtime.sendMessage({ type: 'getTabId' })
     console.log(tabId.value)
@@ -131,9 +133,6 @@
 
     direction.value = await storage.getItem<string | null>(`local:direction:${tabId.value}`) || null
 
-    // get ui values from store
-    const hOVal = await storage.getItem<boolean | null>('local:headerOpen')
-    headerOpen.value = hOVal !== null ? hOVal : true 
 
     routeArenaChannel.value = isAreNaChannel()
     console.log(routeArenaChannel.value)
@@ -174,13 +173,6 @@
       }
     })
 
-    // queue animation if commuting
-    if(commuting.value && direction) {
-      setTimeout(() => {
-        if(commutingLine.value && direction.value) rideAnimations()
-      }, restingTime.value * 1000)
-    }
-
     const currentLineUnwatch = storage.watch(`local:currentLine:${tabId.value}`, (newVal: any | null) => {
       commutingLine.value = newVal
     })
@@ -190,7 +182,13 @@
     })
 
     const modeUnwatch = storage.watch(`local:mode:${tabId.value}`, (newVal: string | null) => {
-      if (newVal !== null) mode.value = newVal
+      console.log("mode changed to", newVal)
+      if (newVal !== null) {
+        mode.value = newVal
+        if (newVal === 'leaving') {
+          displayLine.value = commutingLine.value
+        }
+      }
     })
 
     const remainingTimeUnwatch = storage.watch(`local:timeToDeparture:${tabId.value}`, (newVal: number | null) => {
@@ -252,7 +250,7 @@
     </template>
 
     <!-- The Bar at the bottom of the screen -->
-    <header v-if="!ridingAnimation" :class="{'closed': !headerOpen}">
+    <header v-if="!ridingAnimation && headerOpen !== null" :class="{'closed': !headerOpen}">
       <!-- The Current Line when on a subway -->
       <LineAbbreviation v-if="commuting && commutingLine" :line="commutingLine" :inactive="false" @open="slug => openLine(slug)" />
       <!-- Action Buttons for when commuting -->
@@ -271,8 +269,8 @@
         </template>
       </template>
       <!-- Buttons enabling to start a ride towards the start or end of the channel -->
-      <div class="button-container" v-if="!commuting && displayLine && stationIndex >= 0 && displayLine.contents">
-        <button v-if="stationIndex > 0" @click="startRide('backwards')"><NextIcon class="next-icon backwards"/> <span>{{ displayLine.contents[0].title }}</span></button>
+      <div class="button-container" v-if="!commuting && displayLine && displayLine.contents">
+        <button v-if="stationIndex !== 0" @click="startRide('backwards')"><NextIcon class="next-icon backwards"/> <span>{{ displayLine.contents[0].title }}</span></button>
         <button v-if="stationIndex < displayLine.length - 1 && displayLine.length > 0" @click="startRide('forwards')"><span>{{ displayLine.contents[displayLine.contents.length - 1].title }}</span> <NextIcon class="next-icon"/></button>
       </div>
       <!-- The Countdown till we're going to the next station -->
