@@ -1,25 +1,43 @@
 <script lang="ts" setup>
 import { convertToTime } from '@/utils/compareRoute'
 
-  const restVal = ref<number>(30)
-  const commVal = ref<number>(10)
-  const funMode = ref<boolean>(false)
-  const enabled = ref<boolean>(false)
-  function setStorage(key: string, value: number | boolean) {
-    console.log('set value', key, value)
-    storage.setItem(`local:${key}`, value)
+const restVal = ref<number>(30)
+const commVal = ref<number>(10)
+const funMode = ref<boolean>(false)
+const enabled = ref<boolean>(false)
+const isAuthorized = ref<boolean>(false)
+function setStorage(key: string, value: number | boolean) {
+  console.log('set value', key, value)
+  storage.setItem(`local:${key}`, value)
+}
+onMounted(async() => {
+  restVal.value = await storage.getItem<number | null>('local:restingTime') || 30
+  commVal.value = await storage.getItem<number | null>('local:commutingTime') || 10
+  funMode.value = await storage.getItem<boolean | null>('local:funMode') || false
+  const localEnabled = await storage.getItem<boolean | null>('local:enabled')
+  enabled.value = localEnabled !== null ? localEnabled : false
+  const token = await storage.getItem<string>('local:token')
+  if (token) isAuthorized.value = true
+})
+
+function authorizeArena() {
+  if(!isAuthorized.value) {
+    browser.runtime.sendMessage({ type: 'authorize' })
   }
-  onMounted(async() => {
-    restVal.value = await storage.getItem<number | null>('local:restingTime') || 30
-    commVal.value = await storage.getItem<number | null>('local:commutingTime') || 10
-    funMode.value = await storage.getItem<boolean | null>('local:funMode') || false
-    const localEnabled = await storage.getItem<boolean | null>('local:enabled')
-    enabled.value = localEnabled !== null ? localEnabled : false
-  })
+}
+
+const unwatch = storage.watch('local:token', newVal => {
+  if (newVal !== null) isAuthorized.value = true
+})
+
+onBeforeUnmount(() => {
+  unwatch()
+})
 </script>
 
 <template>
   <div class="popup">
+    <button @click="authorizeArena()"><span v-if="!isAuthorized">authorize with are.na for more requests</span><span class="gray" v-else>authorized</span></button>
     <div class="header">
       <input type="checkbox" name="onoff" id="onoff" @change="setStorage('enabled', enabled)" v-model="enabled">
       <h1>
@@ -46,6 +64,9 @@ import { convertToTime } from '@/utils/compareRoute'
 </template>
 
 <style scoped>
+  .gray {
+    color: GrayText;
+  }
   .header {
     display: flex;
     align-items: center;

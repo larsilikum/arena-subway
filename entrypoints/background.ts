@@ -11,10 +11,15 @@ const MAX_REQUESTS = {
   not_logged_in: 30,
   logged_in: 120
 }
+let isLoggedIn = false
 
 const requestTimestamps: number[] = []
 
-export default defineBackground(() => {
+export default defineBackground(async () => {
+  // check for token
+  const _token = await storage.getItem<string>('local:token')
+  if (_token !== null) isLoggedIn = true
+
   let lineIndex = 0
   // stores boolean if url is to be skipped without animation (domain not found by dns or 404 error)
   const tabSkipStationNoAnimation = new Map()
@@ -25,7 +30,7 @@ export default defineBackground(() => {
   browser.webRequest.onErrorOccurred.addListener(
     (details) => {
       console.log('Request error for:', details.url, 'Error:', details.error);
-      if (details.error === 'net::ERR_NAME_NOT_RESOLVED') {
+      if (details.error === 'net::ERR_NAME_NOT_RESOLVED' || details.error === 'NS_ERROR_UNKNOWN_HOST') {
         console.log('Domain not found');
         tabSkipStationNoAnimation.set(details.tabId, true)
       }
@@ -80,6 +85,9 @@ export default defineBackground(() => {
 
   function handleMessages(message: Message, sender: Browser.runtime.MessageSender, sendResponse: Function) {
     switch (message.type) {
+      case "authorize":
+        getArenaToken()
+        break
       case "getTabId":
         sendResponse(sender.tab?.id)
         return true
@@ -99,7 +107,7 @@ export default defineBackground(() => {
         getLineContentsHandler(message.value.slug, message.value.length, sendResponse)
         return true
       default:
-        console.error("unknown message type")
+        console.error("unknown message type", message.type)
     }
   }
 
@@ -111,8 +119,8 @@ export default defineBackground(() => {
     await storage.setItem(`local:commuting:${tab.id}`, true)
 
     // i know this is ugly, but i havent figured out a way to have the lineIndex stay the same for all requests except like this for now
-    // this will be automatically updated to 0 in the timeOutLoopArray
-    lineIndex = 0
+    // this will be automatically updated to 0 in the commutingCascade
+    lineIndex = -1
 
     // only use Links (no images, pdfs etc.)
     stations = line.contents.filter((content: any) => content.class === 'Link')
@@ -122,6 +130,8 @@ export default defineBackground(() => {
 
     // if we dont start from an arena channel, we need to find where we are on the line and cut the stations in the other direction
     if (!fromArena) {
+      // start from the next station after the current, will be 1 when navigating to the first station on the line
+      lineIndex = 0
       // get station index of the current url
       stationIndex = 0
       stationIndex = stations.findIndex(station => isSameRoute(station.source?.url, url))
@@ -205,7 +215,7 @@ export default defineBackground(() => {
     if (!channel) {
       const response: ArenaChannel = await fetchChannel(slug)
       channel = apiChannelToArenaChannel(response)
-      channel.contents = await getChannelContents(slug, channel.length, channel.contents || [])
+      // channel.contents = await getChannelContents(slug, channel.length, channel.contents || [])
       // store channel
       await addChannelToStorage(channel)
     }
@@ -256,10 +266,14 @@ export default defineBackground(() => {
   function getStationLinesByTitle(message: Message, activeTabId: number) {
     fetchSearchBlocks(message.value.title)
       .then(d => {
-        const filtered: ArenaBlock[] = d.blocks.filter((block: ArenaBlock) => block.source && isSameRoute(block.source.url, message.value.url))
+        let filtered: ArenaBlock[] = d.blocks.filter((block: ArenaBlock) => block.source && isSameRoute(block.source.url, message.value.url))
         console.log(d, message.value.url)
         console.log("filtered blocks count: ", filtered.length)
-        
+
+        // only fetch a maximum of 14 blocks to reduce requests to arena
+        // TODO: only splice when not logged in
+        if(!isLoggedIn) filtered.splice(14)
+
         if (filtered.length) {
           const promises: Promise<any>[] = []
           for(const block of filtered) {
@@ -291,7 +305,8 @@ export default defineBackground(() => {
   async function getChannelContents(slug: string, channelLength: number, contentsFetched: (ArenaBlock | ArenaChannel)[] = []) {
     const channel: any = await storage.getItem(`local:channel-contents-${slug}`)
     if (channel) return channel.data
-    const fetched = await fetchChannelContents(slug, channelLength, contentsFetched)
+    // reverse fetched data to have newest blocks in the beginning
+    const fetched = (await fetchChannelContents(slug, channelLength, contentsFetched)).reverse()
     try {
       await storage.setItem(`local:channel-contents-${slug}`, { data: fetched })
     }
@@ -357,7 +372,7 @@ function cleanOldRequests() {
 }
 
 // Check if we can make a request, wait if needed
-async function waitForRateLimit(isLoggedIn: boolean = false): Promise<void> {
+async function waitForRateLimit(): Promise<void> {
   cleanOldRequests()
   
   const limit = isLoggedIn ? MAX_REQUESTS.logged_in : MAX_REQUESTS.not_logged_in
@@ -369,15 +384,15 @@ async function waitForRateLimit(isLoggedIn: boolean = false): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, waitTime))
     
     // Recursively check again after waiting
-    return waitForRateLimit(isLoggedIn)
+    return waitForRateLimit()
   }
 }
 
-async function fetchArena(route: string, retry = 0, isLoggedIn: boolean = false): Promise<Response> {
+async function fetchArena(route: string, retry = 0): Promise<Response> {
   const BaseURL = "http://api.are.na/v2/"
   
   // Wait for rate limit before making request
-  await waitForRateLimit(isLoggedIn)
+  await waitForRateLimit()
   
   // Record this request
   requestTimestamps.push(Date.now())
@@ -389,7 +404,7 @@ async function fetchArena(route: string, retry = 0, isLoggedIn: boolean = false)
       } else if (r.status === 504 && retry < MAX_RETRIES) {
         const res = await new Promise<Response>((resolve) => {
           setTimeout(async () => {
-            const result = await fetchArena(route, retry + 1, isLoggedIn)
+            const result = await fetchArena(route, retry + 1)
             resolve(result)
           }, RETRY_TIMEOUT)
         })
@@ -400,6 +415,62 @@ async function fetchArena(route: string, retry = 0, isLoggedIn: boolean = false)
       }
     })
 }
+
+// ========================================== ARE.NA AUTH =========================================
+
+const CLIENT_ID = 'OrdORBujGQriu963U--4jJtCP3aeo4m5unixjW6T-u8'
+
+async function getArenaToken(): Promise<string | null> {
+  const redirectUri = browser.identity.getRedirectURL()
+
+  const token = await storage.getItem<string>('local:token')
+  if (token) return token
+
+  const state = crypto.randomUUID()
+  await storage.setItem('session:arenaState', state);
+
+  const authUrl =
+    `https://dev.are.na/oauth/authorize` +
+    `?response_type=code` +
+    `&client_id=${CLIENT_ID}` +
+    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+    `&state=${state}`;
+
+  const redirectUrl = await browser.identity.launchWebAuthFlow({
+    url: authUrl,
+    interactive: true
+  });
+
+  if (!redirectUrl) return null
+  const url = new URL(redirectUrl)
+  const code = url.searchParams.get("code")
+  const returnedState = url.searchParams.get("state")
+
+  const arenaState = await storage.getItem<string>('session:arenaState')
+  if (!code || returnedState !== arenaState) {
+    throw new Error("OAuth failed, wrong state");
+  }
+
+  const tokenRes = await fetch("https://dev.are.na/oauth/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: CLIENT_ID,
+      code,
+      redirect_uri: redirectUri
+    })
+  });
+
+  const { access_token } = await tokenRes.json();
+  if (!access_token) throw new Error("No access token");
+
+  isLoggedIn = true
+
+  await storage.setItem('local:token', access_token);
+  return access_token;
+}
+
 
 // ========================================== STORAGE HANDLER =====================================
 

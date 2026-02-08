@@ -67,6 +67,7 @@ h5 {
 
 .lines:hover {
   width: 5rem;
+  /* max-width: max-content; */
   justify-content: start;
   padding-inline: .3em;
 }

@@ -48,17 +48,17 @@
 
   // =========================== commuting functions ====================================
   async function startRide(dir: string) {
-    // convert to raw for firefox; should be obsolete, was my mistake as i forgot to use the native $emit function
-    // const rawLine = displayLine.value ? structuredClone(JSON.parse(JSON.stringify(displayLine.value))) : null
-    // const rawFromArena = structuredClone(JSON.parse(JSON.stringify(routeArenaChannel.value)))
-    // const rawUrl = window.location.href
+    // convert to raw for firefox
+    const rawLine = displayLine.value ? structuredClone(JSON.parse(JSON.stringify(displayLine.value))) : null
+    const rawFromArena = structuredClone(JSON.parse(JSON.stringify(routeArenaChannel.value)))
+    const rawUrl = window.location.href
 
     // send the displayed line to background script
     await browser.runtime.sendMessage({ type: "start", value: { 
-      line: displayLine.value, 
-      url: window.location.href, 
+      line: rawLine,
+      url: rawUrl, 
       direction: dir, 
-      fromArena: routeArenaChannel.value }})
+      fromArena: rawFromArena }})
 
     direction.value = dir
     
