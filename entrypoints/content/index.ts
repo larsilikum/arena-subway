@@ -79,14 +79,6 @@ async function cssShenanigans() {
             `
   // append style element to head
   document.head.appendChild(fontStyle)
-
-  const injectedCssUrl = browser.runtime.getURL('/css/injected.css')
-  const injectedCssLink = document.createElement('link')
-  injectedCssLink.href = injectedCssUrl
-  injectedCssLink.rel = 'stylesheet'
-  document.head.prepend(injectedCssLink)
-
-
 }
 
 function defineOverlay(ctx: ContentScriptContext) {
@@ -109,8 +101,11 @@ function defineOverlay(ctx: ContentScriptContext) {
       browser.runtime.sendMessage({ type: 'getTabId' }).then(tabId => {
         if (!tabId) return
         unwatch = storage.watch(`local:mode:${tabId}`, async (newVal: (string | null)) => {
+          const funMode = await storage.getItem('local:funMode')
           if (newVal !== null && newVal === "leaving") {
-            document.head.appendChild(commutingCssLink)
+            setTimeout(() => {
+              document.head.appendChild(commutingCssLink)
+            }, funMode ? 2000 : 0)
           }
         })
       })

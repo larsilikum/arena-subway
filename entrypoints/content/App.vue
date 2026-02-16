@@ -41,10 +41,10 @@
     return Math.max(0, stationIndex.value - 1)
   })
 
-  // const nextStation = computed<ArenaBlock | ArenaChannel | null>(() => {
-  //   if (nextStationIndex.value < 0) return null
-  //   return commutingLine.value?.contents ? commutingLine.value.contents[nextStationIndex.value] : null
-  // })
+  const nextStation = computed<ArenaBlock | ArenaChannel | null>(() => {
+    if (nextStationIndex.value < 0) return null
+    return commutingLine.value?.contents ? commutingLine.value.contents[nextStationIndex.value] : null
+  })
 
   // =========================== commuting functions ====================================
   async function startRide(dir: string) {
@@ -233,22 +233,22 @@
 
 <template>
   <div :class="{'container': true, 'full-height': ridingAnimation && funMode}" id="web-extension-subway">
-    <!-- <div id="background" :class="{'leaving': leaving, 'arriving': arriving}" :style="`background-image: url('${getImgUrl('/svg/tunnel_plain.png')}')`">
+    <div id="background" :class="{'leaving': mode === 'leaving' || mode === 'commuting', 'arriving': mode === 'arriving'}" :style="`background-image: url('${getImgUrl('/svg/tunnel_plain.png')}')`">
       <template v-if="nextStation && nextStation.image">
         <img :src="nextStation.image.original.url" alt="">
       </template>
-    </div> -->
-    <!-- <div v-if="funMode" :class="{'doors': true, 'closed': mode === 'leaving', 'opened': mode === 'arriving'}">
-      <img id="left-door" :src="getImgUrl('/svg/subway-left-door-tr.png')" alt="">
-      <img id="right-door" :src="getImgUrl('/svg/subway-right-door-tr.png')" alt="">
-      <img id="interior" :src="getImgUrl('/svg/subway-interior-tr.png')" alt="">
-    </div> -->
-
+    </div>
+    
     <!-- The Component rendering the current Line or a Line preview -->
     <template v-if="displayLine || ridingAnimation">
       <LineDisplay :line="displayLine" @close="() => displayLine = null" :station-index="stationIndex" :commuting="commuting" :next-station-index="nextStationIndex"/>
     </template>
-
+      
+    <div v-if="funMode" :class="{'doors': true, 'closed': mode === 'leaving' || mode === 'commuting', 'opened': mode === 'arriving'}">
+      <img id="left-door" :src="getImgUrl('/svg/subway-left-door-tr.png')" alt="">
+      <img id="right-door" :src="getImgUrl('/svg/subway-right-door-tr.png')" alt="">
+      <img id="interior" :src="getImgUrl('/svg/subway-interior-tr.png')" alt="">
+    </div>
     <!-- The Bar at the bottom of the screen -->
     <header v-if="!ridingAnimation && headerOpen !== null" :class="{'closed': !headerOpen}">
       <!-- The Current Line when on a subway -->
@@ -315,8 +315,9 @@
 #background {
   position: absolute;
   bottom: 0;
+  top: 0;
   left: 100dvw;
-  height: calc(100dvh - 400px);
+  height: 100dvh;
   width: 100dvw;
   background-position: 0 0;
   background-repeat: repeat-x;
@@ -325,7 +326,7 @@
 
 #background.leaving {
   left: 0;
-  transition: left 2s ease-in;
+  transition: left 2s cubic-bezier(0.5, 0, 1, 0.5);
   transition-delay: 2s;
   animation: commuting 1s linear infinite;
   animation-delay: 4s;
@@ -343,7 +344,7 @@
     background-position: 0 0;
   }
   to {
-    background-position: calc((100dvh - 400px) * -2.28 * 3) 0;
+    background-position: calc(100dvh * -2.28 * 3) 0;
   }
 }
 
@@ -459,13 +460,14 @@ header p {
 .doors {
   overflow: hidden;
   position: absolute;
-  top: 0;
+  bottom: 0;
   left: 0;
-  height: 100%;
+  height: 100dvh;
   width: 100%;
   transform-origin: center 50vmax;
   transform: scale(2);
-  transition: transform .2s ease-out;
+  transition: transform 2s ease-out;
+  pointer-events: none;
 
   /* display: flex; */
 }

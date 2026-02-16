@@ -50,7 +50,7 @@ onBeforeUnmount(() => {
       <p>{{ convertToTime(restVal) }}</p>
     </div>
     
-    <div v-if="false" class="input-wrapper">
+    <div class="input-wrapper">
       <label for="instantCommute">fun mode</label>
       <input type="checkbox" name="instantCommute" id="" @change="setStorage('funMode', funMode)" v-model="funMode">
     </div>
@@ -118,6 +118,7 @@ onBeforeUnmount(() => {
     display: flex;
     align-items: center;
     gap: 1em;
+    margin-bottom: 1em;
   }
   .input-wrapper p {
     margin: 0;
