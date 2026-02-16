@@ -39,39 +39,42 @@ async function cssShenanigans() {
   storage.setItem('local:leaving', false)
 
   // Load custom font
-  const brigadeRegular = browser.runtime.getURL("/fonts/Fundamental_Brigade.ttf")
-  const brigadeLight = browser.runtime.getURL("/fonts/Fundamental_Brigade_Schlank.ttf")
-  const brigadeBold = browser.runtime.getURL("/fonts/Fundamental_Brigade_Schwer.ttf")
-  const brigadeCondensed = browser.runtime.getURL("/fonts/Fundamental_Brigade_Condensed.ttf")
-
+  const LiberationRegular = browser.runtime.getURL("/fonts/LiberationSans-Regular.ttf")
+  const LiberationItalic = browser.runtime.getURL("/fonts/LiberationSans-Italic.ttf")
+  const LiberationBold = browser.runtime.getURL("/fonts/LiberationSans-Bold.ttf")
+  const LiberationBoldItalic = browser.runtime.getURL("/fonts/LiberationSans-BoldItalic.ttf")
+  
   // create a style element
   const fontStyle = document.createElement("style")
 
   // add font face
   fontStyle.textContent = `
                 @font-face {
-                  font-family: Brigade;
-                  src: url("${brigadeRegular}");
-                  font-weight: normal;
+                  font-family: "Liberation Sans";
+                  src: url("${LiberationRegular}");
+                  font-weight: 400;
+                  font-style: normal;
                 }
 
                 @font-face {
-                  font-family: Brigade;
-                  src: url("${brigadeLight}");
-                  font-weight: 200;
+                  font-family: "Liberation Sans";
+                  src: url("${LiberationItalic}");
+                  font-weight: 400;
+                  font-style: italic;
                 }
 
                 @font-face {
-                  font-family: Brigade;
-                  src: url("${brigadeBold}");
-                  font-weight: bold;
+                  font-family: "Liberation Sans";
+                  src: url("${LiberationBold}");
+                  font-weight: 700;
+                  font-style: normal;
                 }
 
                 @font-face {
-                  font-family: BrigadeCondensed;
-                  src: url("${brigadeCondensed}");
-                  font-weight: normal;
-                  font-stretch: codensed;
+                  font-family: "Liberation Sans";
+                  src: url("${LiberationBoldItalic}");
+                  font-weight: 700;
+                  font-style: italic;
                 }
             `
   // append style element to head

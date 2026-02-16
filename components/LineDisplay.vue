@@ -144,8 +144,7 @@ h2 {
   color: v-bind(textColor);
   border: .05em solid v-bind(textColor);
   width: 1.5em;
-  height: 1.3em;
-  padding-top: .2em;
+  height: 1.5em;
   margin-right: 1rem;
   border-radius: 50%;
   font-size: x-large;

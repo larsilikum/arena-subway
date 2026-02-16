@@ -37,7 +37,6 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="popup">
-    <button @click="authorizeArena()"><span v-if="!isAuthorized">authorize with are.na for more requests</span><span class="gray" v-else>authorized</span></button>
     <div class="header">
       <input type="checkbox" name="onoff" id="onoff" @change="setStorage('enabled', enabled)" v-model="enabled">
       <h1>
@@ -55,11 +54,16 @@ onBeforeUnmount(() => {
       <label for="instantCommute">fun mode</label>
       <input type="checkbox" name="instantCommute" id="" @change="setStorage('funMode', funMode)" v-model="funMode">
     </div>
-
-    <div v-if="funMode" class="input-wrapper">
+    
+    <template v-if="funMode" >
       <label for="commutingTime">time for commuting between stations</label>
-      <input type="range" name="commuting time" min="10" max="40" @change="setStorage('commutingTime', commVal)" v-model.number="commVal">
-    </div>
+      <div class="input-wrapper">
+        <input type="range" name="commuting time" min="10" max="40" @change="setStorage('commutingTime', commVal)" v-model.number="commVal">
+        <p>{{ convertToTime(commVal) }}</p>
+      </div>
+    </template>
+    <label class="additional-info">if you want to see more lines and channels with more than 1500 blocks you can authorize this application with your are.na account.</label>
+    <button @click="authorizeArena()"><span v-if="!isAuthorized">authorize</span><span class="gray" v-else>authorized</span></button>
   </div>
 </template>
 
@@ -69,11 +73,20 @@ onBeforeUnmount(() => {
   }
   .header {
     display: flex;
-    align-items: center;
+    align-items: start;
     margin-bottom: 1em;
   }
   label {
     margin: 0;
+  }
+  label.additional-info {
+    margin-top: 1em;
+    font-size: small;
+    font-style: italic;
+    max-width: 25em;
+  }
+  button {
+    font-family: inherit;
   }
   #onoff {
     appearance: none;
@@ -116,6 +129,7 @@ onBeforeUnmount(() => {
   }
   h1 {
     margin: 0;
+    line-height: 1.1;
     font-weight: normal;
   }
 </style>

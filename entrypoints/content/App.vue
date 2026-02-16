@@ -389,11 +389,13 @@ header.closed {
   position: relative;
   display: flex;
   justify-content: center;
+  align-items: start;
   gap: .4em;
 }
 
 button span {
   max-width: 15em;
+  line-height: .9;
   height: 1.5em;
   overflow: hidden;
   white-space: nowrap;

@@ -20,7 +20,7 @@ defineProps<{
   line-height: 1.2;
   font-size: small;
   width: 1.5em;
-  height: 1.3em;
+  height: 1.5em;
   text-align: center;
   margin: 0;
   border-radius: .75em;
@@ -28,7 +28,7 @@ defineProps<{
   flex-shrink: 0;
   justify-content: center;
   align-items: center;
-  padding-top: .2em;
+  padding-top: 0;
   /* padding: .4em .3em .2em .3em; */
   cursor: pointer;
   transition: width .4s ease;
