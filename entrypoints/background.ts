@@ -20,6 +20,8 @@ export default defineBackground(async () => {
   const _token = await storage.getItem<string>('local:token')
   if (_token !== null) isLoggedIn = true
 
+  console.log(browser.identity.getRedirectURL())
+
   let lineIndex = 0
   // stores boolean if url is to be skipped without animation (domain not found by dns or 404 error)
   const tabSkipStationNoAnimation = new Map()
@@ -389,32 +391,39 @@ async function waitForRateLimit(): Promise<void> {
 }
 
 async function fetchArena(route: string, retry = 0): Promise<Response> {
-  const BaseURL = "http://api.are.na/v2/"
-  
-  // Wait for rate limit before making request
-  await waitForRateLimit()
-  
-  // Record this request
-  requestTimestamps.push(Date.now())
-  
-  return fetch(BaseURL + route)
-    .then(async (r) => {
-      if (r.ok) {
-        return r
-      } else if (r.status === 504 && retry < MAX_RETRIES) {
-        const res = await new Promise<Response>((resolve) => {
-          setTimeout(async () => {
-            const result = await fetchArena(route, retry + 1)
-            resolve(result)
-          }, RETRY_TIMEOUT)
-        })
-        return res
-      } else {
-        console.error("an error occured", r.status, r.statusText)
-        return r
-      }
-    })
+  const BaseURL = "https://api.are.na/v2/"
+
+  try {
+    await waitForRateLimit()
+    requestTimestamps.push(Date.now())
+
+    const r = await fetch(BaseURL + route)
+
+    if (r.ok) return r
+
+    if (r.status === 504 && retry < MAX_RETRIES) {
+      await delay(RETRY_TIMEOUT)
+      return fetchArena(route, retry + 1)
+    }
+
+    console.error("HTTP error:", r.status, r.statusText)
+    return r
+
+  } catch (err) {
+    // This catches CORS errors + network failures
+    if (retry < MAX_RETRIES) {
+      await delay(RETRY_TIMEOUT)
+      return fetchArena(route, retry + 1)
+    }
+
+    throw err
+  }
 }
+
+function delay(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
 
 // ========================================== ARE.NA AUTH =========================================
 
