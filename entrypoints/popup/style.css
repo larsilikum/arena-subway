@@ -14,8 +14,8 @@
   font-weight: 400;
 
   color-scheme: light dark;
-  color: FieldText;
-  background-color: Field;
+  color: white;
+  background-color: #333;
 }
 
 body {

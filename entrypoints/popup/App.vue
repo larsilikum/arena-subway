@@ -95,7 +95,7 @@ onBeforeUnmount(() => {
     margin-right: 1em;
   }
   #onoff:checked {
-    color: FieldText;
+    color: white;
   }
   #onoff::after {
     content: '⏼';
@@ -105,7 +105,7 @@ onBeforeUnmount(() => {
     cursor: pointer;
   }
   #onoff:checked::after {
-    text-shadow: FieldText 0 0 5px;
+    text-shadow: white 0 0 5px;
   }
   #onoff:hover::after {
     text-shadow: Highlight 0 0 5px;

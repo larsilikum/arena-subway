@@ -15,11 +15,11 @@
      id="layer1"
      transform="translate(-87.480458,-61.686561)">
     <path
-       style="fill:ButtonText;stroke:none;stroke-width:4.22895;stroke-linejoin:round;stroke-dasharray:none;paint-order:stroke markers fill"
+       style="fill:white;stroke:none;stroke-width:4.22895;stroke-linejoin:round;stroke-dasharray:none;paint-order:stroke markers fill"
        d="m 87.480458,61.68656 v 49.59859 L 120.77449,86.485855 Z"
        id="path7907" />
     <path
-       style="fill:ButtonText;stroke:none;stroke-width:4.22895;stroke-linejoin:round;stroke-dasharray:none;paint-order:stroke markers fill"
+       style="fill:white;stroke:none;stroke-width:4.22895;stroke-linejoin:round;stroke-dasharray:none;paint-order:stroke markers fill"
        d="m 108.71849,61.68656 v 49.59859 l 33.294,-24.799295 z"
        id="path7743" />
   </g>
@@ -28,7 +28,7 @@
 
 <style scoped>
 svg {
-  fill: ButtonText;
+  fill: white;
   height: 65%;
   margin-left: 5%;
   flex-grow: 0;

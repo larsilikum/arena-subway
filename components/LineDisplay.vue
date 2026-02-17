@@ -37,8 +37,8 @@
 </script>
 
 <template>
-  <div :class="{ 'line': true, 'closed': closed}">
-    <button id="close" @click="handleClick()"><CloseIcon/></button>
+  <div :class="{ 'line': true, 'closed': closed, 'commuting': commuting }">
+    <button v-if="!commuting" id="close" @click="handleClick()"><CloseIcon/></button>
     <div class="left-column-top">
       <span class="line-abbr">{{ line.title.substring(0, 1) }}</span>
       <div>
@@ -71,7 +71,7 @@
   display: grid;
   grid-template-columns: auto 1fr 50%;
   column-gap: 2rem;
-  background: Field;
+  background: #333;
   padding: .4rem .4rem 32px .4rem;
   overflow-y: hidden;
   animation: appear .3s ease-out;
@@ -79,10 +79,27 @@
   transition: transform .3s ease-in;
   /* border-bottom: 2.5px solid var(--text-color); */
 }
-
+.line.commuting {
+  background: linear-gradient(to bottom, #333 20%, #333333dd 75%, transparent);
+  animation: appear-commuting .3s ease-out;
+  /* mix-blend-mode: darken; */
+}
 .line.closed {
   animation: none;
   transform: translateY(100%);
+}
+.line.closed.commuting {
+  animation: none;
+  transform: translateY(-100%);
+}
+
+@keyframes appear-commuting {
+  from {
+    transform: translateY(-100%)
+  }
+  to {
+    transform: translateY(0);
+  }
 }
 
 @keyframes appear {

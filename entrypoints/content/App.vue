@@ -30,7 +30,7 @@
   // indicator light values (LineDisplayStation)
   const stationIndex = computed<number>(() => {
     if(routeArenaChannel.value) return -1
-    return displayLine.value?.contents?.findIndex((s: any) => isSameRoute(s.source?.url, url.value)) || -1
+    return commutingLine.value?.contents?.findIndex((s: any) => isSameRoute(s.source?.url, url.value)) || -1
   })
 
   const nextStationIndex = computed<number>(() => {
@@ -41,7 +41,8 @@
     return Math.max(0, stationIndex.value - 1)
   })
 
-  const nextStation = computed<ArenaBlock | ArenaChannel | null>(() => {
+  // @ts-expect-error
+  const nextStation = computed<ArenaBlock | null>(() => {
     if (nextStationIndex.value < 0) return null
     return commutingLine.value?.contents ? commutingLine.value.contents[nextStationIndex.value] : null
   })
@@ -61,18 +62,10 @@
       fromArena: rawFromArena }})
 
     direction.value = dir
-    
-    // commuting line should now contain the displayLine sent to background and stored there.
-    if(commutingLine.value) rideAnimations()
   }
 
   async function stopRide() {
     await storage.setItem(`local:commuting:${tabId.value}`, false)
-  }
-  
-  function rideAnimations() {
-    // change displayLine to display the current commutingLine
-    displayLine.value = commutingLine.value
   }
 
   const ridingAnimation = computed<boolean>(() => {
@@ -80,7 +73,6 @@
   })
 
   function goToNextStation() {
-    if (commutingLine.value && direction.value) rideAnimations()
     browser.runtime.sendMessage({ type: "goToNextStation"})
   }
 
@@ -185,8 +177,10 @@
       console.log("mode changed to", newVal)
       if (newVal !== null) {
         mode.value = newVal
-        if (newVal === 'leaving') {
+        if (newVal === 'commuting') {
           displayLine.value = commutingLine.value
+        } else if (newVal === 'leaving' || newVal === 'arriving') {
+          displayLine.value = null
         }
       }
     })
@@ -233,22 +227,25 @@
 
 <template>
   <div :class="{'container': true, 'full-height': ridingAnimation && funMode}" id="web-extension-subway">
-    <div id="background" :class="{'leaving': mode === 'leaving' || mode === 'commuting', 'arriving': mode === 'arriving'}" :style="`background-image: url('${getImgUrl('/svg/tunnel_plain.png')}')`">
-      <template v-if="nextStation && nextStation.image">
-        <img :src="nextStation.image.original.url" alt="">
-      </template>
+    <template v-if="funMode && nextStation && nextStation.image && (mode === 'arriving' || mode === 'resting')">
+      <img id="next-station-img" :src="nextStation.image.original.url" alt="">
+    </template>
+
+    <div v-if="funMode" id="background" :class="{'leaving': mode === 'leaving' || mode === 'commuting', 'arriving': mode === 'arriving'}" :style="`background-image: url('${getImgUrl('/svg/tunnel_reduced_center.png')}')`">
+      <img id="tunnel-left" :src="getImgUrl('/svg/tunnel_reduced_left.png')" alt="">
+      <img id="tunnel-right" :src="getImgUrl('/svg/tunnel_reduced_right.png')" alt="">
+    </div>
+    
+    <div v-if="funMode" :class="{'doors': true, 'closed': mode === 'leaving' || mode === 'commuting', 'opened': mode === 'arriving'}">
+      <img id="left-door" :src="getImgUrl('/svg/ubahn_links.png')" alt="">
+      <img id="right-door" :src="getImgUrl('/svg/ubahnrechts.png')" alt="">
+      <img id="interior" :src="getImgUrl('/svg/subway-interior-bw.png')" alt="">
     </div>
     
     <!-- The Component rendering the current Line or a Line preview -->
-    <template v-if="displayLine || ridingAnimation">
-      <LineDisplay :line="displayLine" @close="() => displayLine = null" :station-index="stationIndex" :commuting="commuting" :next-station-index="nextStationIndex"/>
+    <template v-if="displayLine">
+      <LineDisplay :line="displayLine" @close="() => displayLine = null" :station-index="stationIndex" :commuting="ridingAnimation" :next-station-index="nextStationIndex"/>
     </template>
-      
-    <div v-if="funMode" :class="{'doors': true, 'closed': mode === 'leaving' || mode === 'commuting', 'opened': mode === 'arriving'}">
-      <img id="left-door" :src="getImgUrl('/svg/subway-left-door-tr.png')" alt="">
-      <img id="right-door" :src="getImgUrl('/svg/subway-right-door-tr.png')" alt="">
-      <img id="interior" :src="getImgUrl('/svg/subway-interior-tr.png')" alt="">
-    </div>
     <!-- The Bar at the bottom of the screen -->
     <header v-if="!ridingAnimation && headerOpen !== null" :class="{'closed': !headerOpen}">
       <!-- The Current Line when on a subway -->
@@ -309,34 +306,54 @@
   flex-grow: 0;
   height: 50%;
   aspect-ratio: 1 / 1;
-  background-color: ButtonText;
+  background-color: white;
 }
 
 #background {
   position: absolute;
   bottom: 0;
-  top: 0;
-  left: 100dvw;
+  top: 100%;
+  left: calc(100dvw + 125dvh);
   height: 100dvh;
   width: 100dvw;
+  background-color: transparent;
   background-position: 0 0;
   background-repeat: repeat-x;
   background-size: cover;
+  transition: left 2s cubic-bezier(0.5, 0, 1, 0.5), background-color 2s ease-in-out;
 }
 
 #background.leaving {
+  top: 0;
   left: 0;
-  transition: left 2s cubic-bezier(0.5, 0, 1, 0.5);
-  transition-delay: 2s;
+  background-color: #333333aa;
   animation: commuting 1s linear infinite;
   animation-delay: 4s;
+  transition-delay: 2s;
 }
 
-#background img {
+#tunnel-left {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  transform: translateX(-100%);
+}
+
+#tunnel-right {
   position: absolute;
   left: 100%;
   top: 0;
+  height: 100%;
+}
+
+#next-station-img {
+  position: absolute;
+  left: 0;
+  top: 0;
   width: 100dvw;
+  object-fit: cover;
+  object-position: center 0;
 }
 
 @keyframes commuting {
@@ -344,15 +361,18 @@
     background-position: 0 0;
   }
   to {
-    background-position: calc(100dvh * -2.28 * 3) 0;
+    background-position: calc(100dvh * -2.16 * 2) 0;
   }
 }
 
 #background.arriving {
+  top: 0;
   overflow-x: visible;
-  left: -100%;
+  left: -150dvw;
   transition: left 2s ease-in;
   transition-timing-function: ease-out;
+  background-position: 100% 0;
+  background-color: transparent;
 }
 
 header {
@@ -365,8 +385,8 @@ header {
   display: grid;
   grid-template-columns: repeat(4, min-content) minmax(0, 1fr) max-content min-content;
   /* gap: .4rem; */
-  background-color: Field;
-  color: FieldText;
+  background-color: #333;
+  color: white;
   height: 32px;
   font-size: medium;
   align-items: center;

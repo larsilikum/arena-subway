@@ -15,7 +15,7 @@
      id="layer1"
      transform="translate(-84.951291,-57.700573)">
     <rect
-       style="fill:ButtonText;stroke:none;stroke-width:4.70823;stroke-linejoin:round;stroke-dasharray:none;paint-order:stroke markers fill"
+       style="fill:white;stroke:none;stroke-width:4.70823;stroke-linejoin:round;stroke-dasharray:none;paint-order:stroke markers fill"
        id="rect8001"
        width="10.525821"
        height="70.891258"
@@ -24,7 +24,7 @@
        ry="0"
        transform="rotate(-45)" />
     <rect
-       style="fill:ButtonText;stroke:none;stroke-width:4.70823;stroke-linejoin:round;stroke-dasharray:none;paint-order:stroke markers fill"
+       style="fill:white;stroke:none;stroke-width:4.70823;stroke-linejoin:round;stroke-dasharray:none;paint-order:stroke markers fill"
        id="rect8003"
        width="10.525821"
        height="70.891258"
@@ -39,7 +39,7 @@
 
 <style scoped>
 svg {
-  fill: ButtonText;
+  fill: white;
   height: 55%;
   flex-grow: 0;
 }
