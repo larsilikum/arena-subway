@@ -60,6 +60,23 @@
         </template> 
       </div>
     </HorizontalScroll>   
+    <svg id="filter-svg">
+      <defs>
+          <filter style="color-interpolation-filters:sRGB" id="filter-big-sizes" x="-0.00050549034" y="-0.00066535256"
+            width="1.001011" height="1.0013307">
+            <feTurbulence type="fractalNoise" numOctaves="3" baseFrequency=".3" seed="0" result="result0"
+              id="feTurbulence30550" />
+            <feColorMatrix result="result4" values="0" type="saturate" id="feColorMatrix30552" />
+            <feComposite in="SourceGraphic" in2="result4" operator="arithmetic" k1="0.24" k2="0.1369863" k3="0.33"
+              result="result2" id="feComposite30554" k4="0" />
+            <feBlend result="result5" mode="screen" in="result2" in2="SourceGraphic" id="feBlend30556" />
+            <feComposite in="result5" in2="SourceGraphic" operator="in" result="fbSourceGraphic" id="feComposite30558" />
+            <feColorMatrix result="fbSourceGraphicAlpha" in="fbSourceGraphic"
+              values="0 0 0 -1 0 0 0 0 -1 0 0 0 0 -1 0 0 0 0 1 0" id="feColorMatrix30615" />
+            <feGaussianBlur id="feGaussianBlur30617" stdDeviation="0.3 0.6" result="blur" in="fbSourceGraphic" />
+          </filter>
+      </defs>
+    </svg>
   </div>
 </template>
 
@@ -80,9 +97,27 @@
   /* border-bottom: 2.5px solid var(--text-color); */
 }
 .line.commuting {
-  background: linear-gradient(to bottom, #333 20%, #333333dd 75%, transparent);
+  background: linear-gradient(to bottom, #fff 20%, #fffd 85%, transparent);
+  /* background: #ffffffaa; */
+  width: 60%;
+  margin-inline: auto;
+  color: #333 !important;
   animation: appear-commuting .3s ease-out;
-  /* mix-blend-mode: darken; */
+  filter: url(#filter-big-sizes);
+  transform: perspective(15vw) rotateX(-10deg) translate(1.3vw, 15%);
+  transform-style: preserve-3d;
+  transform-origin: center bottom;
+  /* mix-blend-mode: hard-light; */
+}
+
+#filter-svg {
+  /* display: none; */
+  height: 0;
+  width: 0;
+}
+
+.line.commuting:deep(h5), .line.commuting h2 {
+  color: #333;
 }
 .line.closed {
   animation: none;

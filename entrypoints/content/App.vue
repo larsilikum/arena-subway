@@ -26,11 +26,12 @@
   // ui refs
   const headerOpen = ref<boolean | null>(null)
   const routeArenaChannel = ref(false)
+  const lineOpen = ref(false)
     
   // indicator light values (LineDisplayStation)
   const stationIndex = computed<number>(() => {
     if(routeArenaChannel.value) return -1
-    return commutingLine.value?.contents?.findIndex((s: any) => isSameRoute(s.source?.url, url.value)) || -1
+    return displayLine.value?.contents?.findIndex((s: any) => isSameRoute(s.source?.url, url.value)) || -1
   })
 
   const nextStationIndex = computed<number>(() => {
@@ -68,9 +69,7 @@
     await storage.setItem(`local:commuting:${tabId.value}`, false)
   }
 
-  const ridingAnimation = computed<boolean>(() => {
-    return mode.value === "arriving" || mode.value === "commuting" || mode.value === "leaving"
-  })
+  const ridingAnimation = ref(false)
 
   function goToNextStation() {
     browser.runtime.sendMessage({ type: "goToNextStation"})
@@ -78,6 +77,7 @@
 
   // ============================================ ui functions ======================================
   async function openLine(slug: string) {
+    lineOpen.value = true
     if (displayLine.value?.slug === slug) return
 
     const currentLine = lines.value.find(l => l.slug === slug)
@@ -124,7 +124,8 @@
     funMode.value = await storage.getItem(`local:funMode`) || false
 
     direction.value = await storage.getItem<string | null>(`local:direction:${tabId.value}`) || null
-
+    
+    const isLoggedIn = !!(await storage.getItem<boolean>('local:token')) 
 
     routeArenaChannel.value = isAreNaChannel()
     console.log(routeArenaChannel.value)
@@ -158,12 +159,15 @@
         // deduplicate channels
         const all = [...message.channels, ...lines.value]
         const linesMap = new Map(all.map(c => [c.id || c.slug, c]))
-        // too long lines will take more than our max requests
-        lines.value = Array.from(linesMap.values()).filter(l => l.length < 1500)
+        // too long lines will take more than our max requests if not logged in
+        lines.value = Array.from(linesMap.values()).filter(l => isLoggedIn ? l.length < 6000 : l.length < 1500)
+        // displayLine.value = lines.value[0] // for debugging
       } else if (message.type === "arenaChannelReceived") {
         lines.value = [message.value.channel]
       }
     })
+
+    // ==================================== storage Watchers =========================================
 
     const currentLineUnwatch = storage.watch(`local:currentLine:${tabId.value}`, (newVal: any | null) => {
       commutingLine.value = newVal
@@ -179,8 +183,11 @@
         mode.value = newVal
         if (newVal === 'commuting') {
           displayLine.value = commutingLine.value
+          lineOpen.value = true
         } else if (newVal === 'leaving' || newVal === 'arriving') {
-          displayLine.value = null
+          lineOpen.value = false
+          // trigger riding animations
+          ridingAnimation.value = true
         }
       }
     })
@@ -216,9 +223,6 @@
     return isAreNaDomain && hasChannelElements;
   }
 
-  // ==================================== storage Watchers =========================================
-
-
   // unwatch storage before unmount
   onBeforeUnmount(() => {
     storageUnwatch.value()
@@ -227,13 +231,13 @@
 
 <template>
   <div :class="{'container': true, 'full-height': ridingAnimation && funMode}" id="web-extension-subway">
-    <template v-if="funMode && nextStation && nextStation.image && (mode === 'arriving' || mode === 'resting')">
-      <img id="next-station-img" :src="nextStation.image.original.url" alt="">
+    <template v-if="funMode && nextStation && nextStation.image">
+      <img id="next-station-img" :class="{'moved-right': mode === 'commuting'}" :src="nextStation.image.original.url" alt="">
     </template>
 
-    <div v-if="funMode" id="background" :class="{'leaving': mode === 'leaving' || mode === 'commuting', 'arriving': mode === 'arriving'}" :style="`background-image: url('${getImgUrl('/svg/tunnel_reduced_center.png')}')`">
-      <img id="tunnel-left" :src="getImgUrl('/svg/tunnel_reduced_left.png')" alt="">
-      <img id="tunnel-right" :src="getImgUrl('/svg/tunnel_reduced_right.png')" alt="">
+    <div v-if="funMode" id="background" :class="{'leaving': mode === 'leaving' || mode === 'commuting', 'arriving': mode === 'arriving'}" :style="`background-image: url('${getImgUrl('/svg/tunnel_reduced_center_small.png')}')`">
+      <img id="tunnel-left" :src="getImgUrl('/svg/tunnel_reduced_left_small.png')" alt="">
+      <img id="tunnel-right" :src="getImgUrl('/svg/tunnel_reduced_right_small.png')" alt="">
     </div>
     
     <div v-if="funMode" :class="{'doors': true, 'closed': mode === 'leaving' || mode === 'commuting', 'opened': mode === 'arriving'}">
@@ -243,8 +247,8 @@
     </div>
     
     <!-- The Component rendering the current Line or a Line preview -->
-    <template v-if="displayLine">
-      <LineDisplay :line="displayLine" @close="() => displayLine = null" :station-index="stationIndex" :commuting="ridingAnimation" :next-station-index="nextStationIndex"/>
+    <template v-if="lineOpen">
+      <LineDisplay :line="displayLine" @close="() => lineOpen = false" :station-index="stationIndex" :commuting="ridingAnimation" :next-station-index="nextStationIndex"/>
     </template>
     <!-- The Bar at the bottom of the screen -->
     <header v-if="!ridingAnimation && headerOpen !== null" :class="{'closed': !headerOpen}">
@@ -261,7 +265,7 @@
         <p id="channel-label">channels:</p>
         <template v-if="lines">
           <HorizontalScroll class="lines-container">
-            <LineAbbreviation v-for="l in lines" :inactive="!!displayLine && l.slug != displayLine.slug" :line="l" @open="slug => openLine(slug)"/>
+            <LineAbbreviation v-for="l in lines" :inactive="lineOpen && l.slug != displayLine?.slug" :line="l" @open="slug => openLine(slug)"/>
           </HorizontalScroll>
         </template>
       </template>
@@ -285,7 +289,6 @@
   right: 0;
   width: 100%;
   height: auto;
-  /* height: 100dvh; */
   z-index: 999;
   pointer-events: all;
 }
@@ -320,16 +323,25 @@
   background-position: 0 0;
   background-repeat: repeat-x;
   background-size: cover;
-  transition: left 2s cubic-bezier(0.5, 0, 1, 0.5), background-color 2s ease-in-out;
+  transition: left 2s cubic-bezier(0.5, 0, 1, 0.5), background-color 2s ease-in-out 1s;
 }
 
 #background.leaving {
   top: 0;
   left: 0;
-  background-color: #333333aa;
+  background-color: #333333;
   animation: commuting 1s linear infinite;
   animation-delay: 4s;
   transition-delay: 2s;
+}
+
+#background.arriving {
+  top: 0;
+  overflow-x: visible;
+  left: -150dvw;
+  transition: left 2s ease-out, background-color 2s ease-out;
+  background-position: 100% 0;
+  background-color: transparent;
 }
 
 #tunnel-left {
@@ -354,6 +366,11 @@
   width: 100dvw;
   object-fit: cover;
   object-position: center 0;
+  transition: left 2s ease-out;
+}
+
+#next-station-img.moved-right {
+  left: 100dvw;
 }
 
 @keyframes commuting {
@@ -363,16 +380,6 @@
   to {
     background-position: calc(100dvh * -2.16 * 2) 0;
   }
-}
-
-#background.arriving {
-  top: 0;
-  overflow-x: visible;
-  left: -150dvw;
-  transition: left 2s ease-in;
-  transition-timing-function: ease-out;
-  background-position: 100% 0;
-  background-color: transparent;
 }
 
 header {
@@ -398,8 +405,6 @@ header > *:not(:first-child) {
 }
 
 header.closed {
-  /* left: 50%;
-  transform: translateX(-50%); */
   grid-template-columns: repeat(5, auto);
   width: 2em;
   min-width: min-content;
@@ -433,10 +438,6 @@ button .next-icon.backwards {
   transform-origin: center;
   transform: rotate(-180deg)
 }
-/* 
-#lines-amount {
-  grid-column: 3 / 4;
-} */
 
 #lines-amount:hover {
   width: 15ch;
@@ -465,8 +466,6 @@ header p {
 }
 
 .lines-container {
-  /* position: absolute;
-  top: 0; */
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -486,22 +485,18 @@ header p {
   width: 100%;
   transform-origin: center 50vmax;
   transform: scale(2);
-  transition: transform 2s ease-out;
+  transition: transform 1s ease-out;
   pointer-events: none;
-
-  /* display: flex; */
 }
 
-.closed {
+.doors.closed {
   transform: scale(1);
+  transition-delay: 0;
 }
 
-/* .doors img {
-  width: 50%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 1s ease-in-out;
-  } */
+.doors.opened {
+  transition-delay: 3s;
+}
   
 .doors img {
   height: 100dvh;
@@ -509,44 +504,30 @@ header p {
   position: absolute;
   left: 0;
   top: 0;
-  transition: transform .8s ease-in-out;
+  transition: transform 1s ease-in-out 1s;
   object-fit: cover;
   object-position: center 10%;
   pointer-events: none;
 }
 
-
-
+.doors.closed img {
+  transition-delay: 1s;
+}
 
 #left-door {
   transform: translateX(-25%);
-  /* object-position: right; */
 }
 
 #right-door {
   transform: translateX(26%);
-  /* object-position: top left; */
 }
 
 .closed #left-door, .closed #right-door {
   transform: translateX(0);
-  transition-delay: .2s;
 }
 
-.opened img {
+.doors.opened img {
   transition-delay: 2s;
 }
 
-
-/* .lines:hover .line-abbr {
-  display: none;
-}
-
-.additional-info {
-  display: none;
-}
-
-.lines:hover .additional-info {
-  display: block;
-} */
 </style>
