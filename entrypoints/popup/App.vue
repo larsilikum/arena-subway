@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { convertToTime } from '@/utils/compareRoute'
+import { convertToTime } from '@/utils'
 
 const restVal = ref<number>(30)
 const commVal = ref<number>(10)

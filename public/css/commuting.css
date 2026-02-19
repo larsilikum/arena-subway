@@ -8,30 +8,30 @@ body:not(:has(#web-extension-subway)) {
 
 body * {
   /* transition-delay: 2s; */
-  transition: transform 2s cubic-bezier(0.5, 0, 1, 0.5) !important;
+  transition: transform 3s cubic-bezier(0.5, 0, 1, 0.5) !important;
 }
 
 body > *:nth-child(6n) {
-  transform: translateX(-300dvw) !important;
+  transform: translateX(-200dvw) !important;
 }
 
 
 body > *:nth-child(6n + 1) {
-  transform: translateX(-266dvw) !important;
+  transform: translateX(-166dvw) !important;
 }
 
 
 body > *:nth-child(6n + 2) {
-  transform: translateX(-233dvw) !important;
+  transform: translateX(-133dvw) !important;
 }
 body > *:nth-child(6n + 3) {
-  transform: translateX(-200dvw) !important;
+  transform: translateX(-100dvw) !important;
 }
 body > *:nth-child(6n + 4) {
-  transform: translateX(-15dvw) !important;
+  transform: translateX(-150dvw) !important;
 }
 body > *:nth-child(6n + 5) {
-  transform: translateX(-70dvw) !important;
+  transform: translateX(-170dvw) !important;
 }
 
 body > * > *:nth-child(3n) {

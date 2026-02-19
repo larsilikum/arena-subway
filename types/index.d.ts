@@ -16,7 +16,7 @@ export interface ArenaBlock {
   id: number
   title: string
   generated_title: string
-  class: string
+  class: 'Image' | 'Link' | 'Text' | 'Media' | 'Attachment'
   description?: string
   source?: ArenaSource
   image?: ArenaImage
@@ -28,7 +28,7 @@ export interface ArenaChannel {
   title: string
   slug: string
   length: number
-  class: string
+  class: 'Channel'
   user: ArenaUser
   metadata: { 
     description: string

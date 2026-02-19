@@ -1,8 +1,8 @@
 import { Message, ArenaBlock, ArenaChannel, Station, ArenaSource, ArenaImage, ArenaUser } from "@/types"
-import { isSameRoute } from "@/utils/compareRoute"
+import { isSameRoute } from "@/utils"
 
 // how many contents to fetch from a channel at once
-const per = 50
+const PER = 50
 
 // retries
 const MAX_RETRIES = 4
@@ -15,10 +15,12 @@ let isLoggedIn = false
 
 const requestTimestamps: number[] = []
 
-export default defineBackground(async () => {
+export default defineBackground(() => {
   // check for token
-  const _token = await storage.getItem<string>('local:token')
-  if (_token !== null) isLoggedIn = true
+  (async () => {
+    const _token = await storage.getItem<string>('local:token')
+    if (_token !== null) isLoggedIn = true
+  })()
 
   console.log(browser.identity.getRedirectURL())
 
@@ -113,8 +115,8 @@ export default defineBackground(async () => {
     }
   }
 
-  async function startLine(line: any, url: string, direction: string, fromArena: boolean, tab: Browser.tabs.Tab | undefined) {
-    if (!tab) return
+  async function startLine(line: ArenaChannel, url: string, direction: string, fromArena: boolean, tab: Browser.tabs.Tab | undefined) {
+    if (!tab || !line.contents) return
     // set currentLine in store for content script to diplay while commuting
     await storage.setItem(`local:currentLine:${tab.id}`, line)
     await storage.setItem(`local:direction:${tab.id}`, direction)
@@ -154,6 +156,7 @@ export default defineBackground(async () => {
     }
 
     commutingCascade(stations.length, tab, async (i: number) => {
+      await storage.setItem(`local:currentIndex:${tab.id}`, line.contents?.findIndex(s => s.class !== 'Channel' && s.source?.url === stations[i].source.url))
       await browser.tabs.update(tab.id, { url: stations[i].source.url })
     })
 
@@ -329,14 +332,14 @@ export default defineBackground(async () => {
   }
 
   async function fetchChannel(slug: string): Promise<ArenaChannel> {
-    return await fetchArena(`channels/${slug}?per=${per}`).then(r => r.json())
+    return await fetchArena(`channels/${slug}?per=${PER}`).then(r => r.json())
   }
 
   async function fetchChannelContents(slug: string, channelLength: number, contentsFetched: (ArenaChannel | ArenaBlock)[] = []) {
     const fetchedLength = contentsFetched.length
     // this only works if fetchedLength is perfectly divideble by per
-    const fetchedPages = Math.floor(fetchedLength / per)
-    const pages = Math.ceil(channelLength / per)
+    const fetchedPages = Math.floor(fetchedLength / PER)
+    const pages = Math.ceil(channelLength / PER)
     console.log(`fetching ${pages} pages`)
     const promises: Promise<any>[] = []
     for (let i = 1 + fetchedPages; i <= pages; i++) {
@@ -344,7 +347,7 @@ export default defineBackground(async () => {
         Promise.resolve(() => {
           setTimeout(() => {}, i * 30)
         }).then(async () => {
-          return fetchArena(`channels/${slug}/contents?per=${per}&page=${i}`)
+          return fetchArena(`channels/${slug}/contents?per=${PER}&page=${i}`)
             .catch(error => console.log(error)) 
         }).then(r => {
           if(r) {
@@ -436,7 +439,7 @@ async function getArenaToken(): Promise<string | null> {
   if (token) return token
 
   const state = crypto.randomUUID()
-  await storage.setItem('session:arenaState', state);
+  await storage.setItem('local:arenaState', state);
 
   const authUrl =
     `https://dev.are.na/oauth/authorize` +
@@ -455,7 +458,7 @@ async function getArenaToken(): Promise<string | null> {
   const code = url.searchParams.get("code")
   const returnedState = url.searchParams.get("state")
 
-  const arenaState = await storage.getItem<string>('session:arenaState')
+  const arenaState = await storage.getItem<string>('local:arenaState')
   if (!code || returnedState !== arenaState) {
     throw new Error("OAuth failed, wrong state");
   }

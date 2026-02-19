@@ -36,7 +36,6 @@ export default defineContentScript({
 })
 
 async function cssShenanigans() {
-  storage.setItem('local:leaving', false)
 
   // Load custom font
   const LiberationRegular = browser.runtime.getURL("/fonts/LiberationSans-Regular.ttf")
