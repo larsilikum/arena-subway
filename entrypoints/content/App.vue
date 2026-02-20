@@ -16,6 +16,7 @@ import { computedAsync } from '@vueuse/core'
 const lines = ref<ArenaChannel[]>([])
 const commutingLine = ref<ArenaChannel | null>(null)
 const displayLine = ref<ArenaChannel | null>(null)
+const displayLineContents = ref<Map<number, ArenaChannel | ArenaBlock>>(new Map())
 const url = ref<string>('')
 const tabId = ref<number>(-1)
 const direction = ref<string | null>(null)
@@ -76,6 +77,7 @@ async function startRide(dir: string) {
 }
 
 async function stopRide() {
+  ridingAnimation.value = false
   await storage.setItem(`local:commuting:${tabId.value}`, false)
 }
 
@@ -93,18 +95,17 @@ async function openLine(slug: string) {
     console.error("Couldnt find line with slug:", slug)
     return
   }
-
+  displayLineContents.value = new Map()
   displayLine.value = currentLine
 
   if (currentLine.contents?.length != currentLine.length) {
-    displayLine.value.contents = (await browser.runtime.sendMessage({
+   browser.runtime.sendMessage({
       type: "getLineContents", value: {
         slug,
         length: currentLine.length,
       }
-    }))
+    })
   }
-  displayLine.value.contents = displayLine.value.contents?.filter((s: any) => s.class === 'Link')
 }
 
 // header display mode functionality
@@ -121,6 +122,7 @@ onMounted(async () => {
   // get ui values from store
   const hOVal = await storage.getItem<boolean | null>('local:headerOpen')
   headerOpen.value = hOVal !== null ? hOVal : true
+  displayLineContents.value = new Map()
 
   // get tabId
   tabId.value = await browser.runtime.sendMessage({ type: 'getTabId' })
@@ -173,6 +175,14 @@ onMounted(async () => {
       // displayLine.value = lines.value[0] // for debugging
     } else if (message.type === "arenaChannelReceived") {
       lines.value = [message.value.channel]
+    } else if (message.type === "channel-contents") {
+      if(!displayLine.value) return
+      message.value.contents.forEach((content: ArenaBlock, i: number) => {
+        const lineIndex:number = (message.value.page - 1) * message.value.per + i  
+        displayLineContents.value.set(lineIndex, content)
+      })
+      displayLine.value.contents = Array.from(displayLineContents.value.values())
+      displayLine.value.contents = displayLine.value.contents?.filter((s: any) => s.class === 'Link')
     }
   })
 

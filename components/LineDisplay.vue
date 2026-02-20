@@ -18,7 +18,7 @@
   })
 
   const filteredContents = computed(() => {
-    if (!props.line) return []
+    if (!props.line || !props.line.contents?.length) return []
     return props.line.contents.filter((c: any) => c.class === 'Link')
   })
 
