@@ -1,44 +1,58 @@
 <script lang="ts" setup>
-  import LineDisplayStation from './LineDisplayStation.vue'
-  import HorizontalScroll from './HorizontalScroll.vue'
-  import CloseIcon from './CloseIcon.vue'
-  const props = defineProps(['line', 'stationIndex', 'commuting', 'nextStationIndex'])
-  const emits = defineEmits<{
-    (e: 'close'): void,
-  }>()
-  const url = ref<string>('')
-  const color = computed<string>(() => {
-    if (!props.line) return '#000'
-    return hashColor.hashStringToColor(props.line.slug).primary
-  })
+import LineDisplayStation from './LineDisplayStation.vue'
+import HorizontalScroll from './HorizontalScroll.vue'
+import CloseIcon from './CloseIcon.vue'
+import { ArenaBlock, ArenaChannel } from '@/types/index.js'
 
-  const textColor = computed<string>(() => {
-    if (!props.line) return '#fff'
-    return hashColor.hashStringToColor(props.line.slug).secondary
-  })
+const props = defineProps<{
+  line: ArenaChannel
+  stationIndex: number
+  commuting: boolean
+  nextStationIndex: number
+  moreStationsAvailable: boolean
+}>()
 
-  const filteredContents = computed(() => {
-    if (!props.line || !props.line.contents?.length) return []
-    return props.line.contents.filter((c: any) => c.class === 'Link')
-  })
+const emits = defineEmits<{
+  (e: 'close'): void,
+  (e: 'moreStations'): void,
+}>()
 
-  onMounted(() => {
-    url.value = window.location.href
-  })
+const url = ref<string>('')
+const color = computed<string>(() => {
+  if (!props.line) return '#000'
+  return hashColor.hashStringToColor(props.line.slug).primary
+})
 
-  const closed = ref<boolean>(false)
+const textColor = computed<string>(() => {
+  if (!props.line) return '#fff'
+  return hashColor.hashStringToColor(props.line.slug).secondary
+})
 
-  function handleClick() {
-    closed.value = true
-    setTimeout(() => {
-      emits('close')
-    }, 300)
-  }
+//@ts-expect-error
+const filteredContents = computed<ArenaBlock[]>(() => {
+  if (!props.line || !props.line.contents?.length) return []
+  return props.line.contents.filter((c) => c.type === 'Link')
+})
+
+onMounted(() => {
+  url.value = window.location.href
+})
+
+const closed = ref<boolean>(false)
+
+function handleClick() {
+  closed.value = true
+  setTimeout(() => {
+    emits('close')
+  }, 300)
+}
 </script>
 
 <template>
   <div :class="{ 'line': true, 'closed': closed, 'commuting': commuting }">
-    <button v-if="!commuting" id="close" @click="handleClick()"><CloseIcon/></button>
+    <button v-if="!commuting" id="close" @click="handleClick()">
+      <CloseIcon />
+    </button>
     <div class="left-column-top">
       <span class="line-abbr">{{ line.title.substring(0, 1) }}</span>
       <div>
@@ -46,35 +60,37 @@
       </div>
     </div>
     <div class="author-link">
-      <p id="author" v-if="line.user">by: {{ line.user.username }}</p>
-      <a id="channel-link" :href="`https://www.are.na/${line.user.slug}/${line.slug}`">are.na channel</a>
+      <p id="author" v-if="line.owner">by: {{ line.owner.name }}</p>
+      <a id="channel-link" :href="`https://www.are.na/${line.owner.slug}/${line.slug}`">are.na channel</a>
     </div>
     <div class="metadata">
-      <p v-if="line.metadata && line.metadata.description != ''" class="description">{{ line.metadata.description }}</p>
+      <p v-if="line.description?.markdown != ''" class="description">{{ line.description?.plain }}</p>
     </div>
-    <HorizontalScroll class="stations">
+    <HorizontalScroll class="stations" :should-emit="moreStationsAvailable" @scrolled-to-end="emits('moreStations')">
       <div class="stations-container">
-        <hr id="stations-line"/>
+        <hr id="stations-line" />
         <template v-for="(station, i) in filteredContents">
-          <LineDisplayStation :station="station" :url="url" :color="color" :text-color="textColor" :commuting="commuting" :station-index="stationIndex" :index="i" :next-station-index="nextStationIndex"/>
-        </template> 
+          <LineDisplayStation :station="station" :url="url" :color="color" :text-color="textColor"
+            :commuting="commuting" :station-index="stationIndex" :index="i" :next-station-index="nextStationIndex" />
+        </template>
+        <div v-if="moreStationsAvailable" id="next-page-placeholder"></div>
       </div>
-    </HorizontalScroll>   
+    </HorizontalScroll>
     <svg id="filter-svg">
       <defs>
-          <filter style="color-interpolation-filters:sRGB" id="filter-big-sizes" x="-0.00050549034" y="-0.00066535256"
-            width="1.001011" height="1.0013307">
-            <feTurbulence type="fractalNoise" numOctaves="3" baseFrequency=".3" seed="0" result="result0"
-              id="feTurbulence30550" />
-            <feColorMatrix result="result4" values="0" type="saturate" id="feColorMatrix30552" />
-            <feComposite in="SourceGraphic" in2="result4" operator="arithmetic" k1="0.24" k2="0.1369863" k3="0.33"
-              result="result2" id="feComposite30554" k4="0" />
-            <feBlend result="result5" mode="screen" in="result2" in2="SourceGraphic" id="feBlend30556" />
-            <feComposite in="result5" in2="SourceGraphic" operator="in" result="fbSourceGraphic" id="feComposite30558" />
-            <feColorMatrix result="fbSourceGraphicAlpha" in="fbSourceGraphic"
-              values="0 0 0 -1 0 0 0 0 -1 0 0 0 0 -1 0 0 0 0 1 0" id="feColorMatrix30615" />
-            <feGaussianBlur id="feGaussianBlur30617" stdDeviation="0.3 0.6" result="blur" in="fbSourceGraphic" />
-          </filter>
+        <filter style="color-interpolation-filters:sRGB" id="filter-big-sizes" x="-0.00050549034" y="-0.00066535256"
+          width="1.001011" height="1.0013307">
+          <feTurbulence type="fractalNoise" numOctaves="3" baseFrequency=".3" seed="0" result="result0"
+            id="feTurbulence30550" />
+          <feColorMatrix result="result4" values="0" type="saturate" id="feColorMatrix30552" />
+          <feComposite in="SourceGraphic" in2="result4" operator="arithmetic" k1="0.24" k2="0.1369863" k3="0.33"
+            result="result2" id="feComposite30554" k4="0" />
+          <feBlend result="result5" mode="screen" in="result2" in2="SourceGraphic" id="feBlend30556" />
+          <feComposite in="result5" in2="SourceGraphic" operator="in" result="fbSourceGraphic" id="feComposite30558" />
+          <feColorMatrix result="fbSourceGraphicAlpha" in="fbSourceGraphic"
+            values="0 0 0 -1 0 0 0 0 -1 0 0 0 0 -1 0 0 0 0 1 0" id="feColorMatrix30615" />
+          <feGaussianBlur id="feGaussianBlur30617" stdDeviation="0.3 0.6" result="blur" in="fbSourceGraphic" />
+        </filter>
       </defs>
     </svg>
   </div>
@@ -96,6 +112,7 @@
   transition: transform .3s ease-in;
   /* border-bottom: 2.5px solid var(--text-color); */
 }
+
 .line.commuting {
   background: linear-gradient(to bottom, #fff 20%, #fffd 85%, transparent);
   /* background: #ffffffaa; */
@@ -110,19 +127,27 @@
   /* mix-blend-mode: hard-light; */
 }
 
+#next-page-placeholder {
+  width: 30px;
+  opacity: 0;
+}
+
 #filter-svg {
   /* display: none; */
   height: 0;
   width: 0;
 }
 
-.line.commuting:deep(h5), .line.commuting h2 {
+.line.commuting:deep(h5),
+.line.commuting h2 {
   color: #333;
 }
+
 .line.closed {
   animation: none;
   transform: translateY(100%);
 }
+
 .line.closed.commuting {
   animation: none;
   transform: translateY(-100%);
@@ -132,6 +157,7 @@
   from {
     transform: translateY(-100%)
   }
+
   to {
     transform: translateY(0);
   }
@@ -141,6 +167,7 @@
   from {
     transform: translateY(100%);
   }
+
   to {
     transform: translateY(0);
   }
@@ -173,7 +200,8 @@ h2 {
   line-height: 1;
 }
 
-#author, #channel-link {
+#author,
+#channel-link {
   margin: 0;
   font-size: small;
 }

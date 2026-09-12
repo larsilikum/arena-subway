@@ -1,6 +1,8 @@
 <script lang="ts" setup>
+import { ArenaBlock } from '@/types';
+
 const props = defineProps<{
-  station: any,
+  station: ArenaBlock,
   url: string,
   color: string,
   textColor: string,
@@ -14,14 +16,16 @@ const stationEl = ref<HTMLElement | null>(null)
 
 onMounted(() => {
   if (props.stationIndex === props.index) {
-    stationEl.value?.scrollIntoView({behavior: 'smooth', block: 'center', inline: 'center'})
+    stationEl.value?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
   }
 })
 </script>
 
 <template>
-  <div :class="{'station': true, 'active': stationIndex === index && nextStationIndex < 0, 'arriving-at': nextStationIndex === index && commuting}" ref="stationEl">
-    <h5 ref="stationTitle">{{ station.generated_title }}</h5>
+  <div
+    :class="{ 'station': true, 'active': stationIndex === index && nextStationIndex < 0, 'arriving-at': nextStationIndex === index && commuting }"
+    ref="stationEl">
+    <h5 ref="stationTitle">{{ station.title }}</h5>
     <div class="indicator"></div>
   </div>
 </template>
@@ -97,6 +101,7 @@ onMounted(() => {
   from {
     background: radial-gradient(transparent);
   }
+
   to {
     background: radial-gradient(white 20%, transparent 70%);
   }

@@ -1,10 +1,12 @@
+import { MarkdownContent } from '@aredotna/sdk/api'
+
 export interface Message {
   type: string
   value: any
 }
 
 export interface ArenaUser {
-  username: string,
+  name: string
   slug: string
 }
 
@@ -15,42 +17,34 @@ export interface ArenaSource {
 export interface ArenaBlock {
   id: number
   title: string
-  generated_title: string
-  class: 'Image' | 'Link' | 'Text' | 'Media' | 'Attachment'
-  description?: string
+  type: 'Text' | 'Image' | 'Link' | 'Attachment' | 'Embed'
+  description?: MarkdownContent | null
   source?: ArenaSource
   image?: ArenaImage
   channels?: ArenaChannel[]
+}
+
+export interface ArenaDescription {
+  markdown: string
+  html: string
+  plain: string
 }
 
 export interface ArenaChannel {
   id: number
   title: string
   slug: string
-  length: number
-  class: 'Channel'
-  user: ArenaUser
-  metadata: { 
-    description: string
+  counts: {
+    contents: number
   }
+  type: 'Channel'
+  owner: ArenaUser
+  description?: ArenaDescription
   contents?: (ArenaBlock | ArenaChannel)[]
   full_fetch?: boolean
+  pages?: number
 }
 
 export interface ArenaImage {
-  original: ArenaSource
-}
-
-export interface Station {
-  id: number
-  title: string
-  generated_title: string
-  class: string
-  description?: string
-  source: ArenaSource
-  image?: {
-    original: ArenaSource
-  }
-  channels: ArenaChannel[]
-  searched_ids: number[]
+  src?: string
 }

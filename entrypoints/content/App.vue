@@ -6,61 +6,87 @@ import LineAbbreviation from '@/components/LineAbbreviation.vue'
 import HorizontalScroll from '@/components/HorizontalScroll.vue'
 import ColoredPill from '@/components/ColoredPill.vue'
 import Countdown from '@/components/Header/Countdown.vue'
-import { ArenaBlock, ArenaChannel, Station } from '@/types'
+import { ArenaBlock, ArenaChannel } from '@/types'
 import { isSameRoute } from '@/utils'
 import { PublicPath } from 'wxt/browser'
 import { computedAsync } from '@vueuse/core'
 
 
 // data
+// the lines/channels that this page/station appears in
 const lines = ref<ArenaChannel[]>([])
+// the line that we are commuting on
 const commutingLine = ref<ArenaChannel | null>(null)
+// the line shown on screen
 const displayLine = ref<ArenaChannel | null>(null)
 const displayLineContents = ref<Map<number, ArenaChannel | ArenaBlock>>(new Map())
+// url of current page
 const url = ref<string>('')
+// the id of the current tab
 const tabId = ref<number>(-1)
-const direction = ref<string | null>(null)
+// in which direction we are moving on the line
+const direction = ref<'forwards' | 'backwards' | null>(null)
+// number of next page from arena api or null if there isnt any
+const nextPage = ref<number | null>(null)
+// if we already searched for lines
+const searched = ref<boolean>(false)
 
 // storage values
+// if we are commuting
 const commuting = ref(false)
-const mode = ref<string>('')
+// state of the commute / subway
+const mode = ref<'idle' | 'leaving' | 'commuting' | 'arriving' | 'resting'>('idle')
 const funMode = ref<boolean>(false)
 
 // ui refs
+// if the navigation is maximized or not
 const headerOpen = ref<boolean | null>(null)
-const routeArenaChannel = ref(false)
+// if the url of current page is an arena channel
+const urlIsArenaChannel = ref(false)
+// if a line is displayed on screen
 const lineOpen = ref(false)
-const ridingAnimation = ref(false)
+// if we are currently showing an animation for the commute
+const commutingAnimation = ref(false)
 
 // indicator light values (LineDisplayStation)
 const stationIndex = computedAsync<number>(async () => {
-  if (routeArenaChannel.value) return -1
-  if (ridingAnimation.value) {
+  // if we are on an are.na channel we will start with the first station which is 0 but we are not yet there so we are at -1
+  if (urlIsArenaChannel.value) return -1
+  // if we are showing commuting animation we know we can use the current station index in the local storage as we are showing the current line we are traveling on
+  if (commutingAnimation.value) {
+    // TODO: fix this so the index isnt the old one when getting it here!!
     const index = await storage.getItem<number>(`local:currentIndex:${tabId.value}`)
     if (index !== null) return index
   }
-  return displayLine.value?.contents?.findIndex((s: any) => isSameRoute(s.source?.url, url.value)) || -1
+  // if neither we will search it in the display line
+  const idx = displayLine.value?.contents?.findIndex((s: any) => isSameRoute(s.source?.url, url.value))
+  if (idx !== undefined) return idx
+  return -1
 }, -1)
 
 const nextStationIndex = computed<number>(() => {
-  if (stationIndex.value < 0 || !direction.value || !commutingLine.value || !ridingAnimation.value) return -1
+  if (stationIndex.value < 0 || !direction.value || !commutingLine.value || !commutingAnimation.value) return -1
   if (direction.value === 'forwards') {
-    return Math.min(stationIndex.value + 1, commutingLine.value.length - 1)
+    return stationIndex.value + 1
   }
-  return Math.max(0, stationIndex.value - 1)
+  return stationIndex.value - 1
 })
 
 // @ts-expect-error
 const nextStation = computed<ArenaBlock | null>(() => {
+  if (!commutingLine.value?.contents) return null
+  // check if nextStation index is still in bounds of commutingLine contents
   if (nextStationIndex.value < 0) return null
-  return commutingLine.value?.contents ? commutingLine.value.contents[nextStationIndex.value] : null
+  if (nextStationIndex.value >= commutingLine.value?.contents.length) return null
+
+  return commutingLine.value.contents[nextStationIndex.value]
 })
 
 // =========================== commuting functions ====================================
-async function startRide(dir: string) {
+async function startRide(dir: 'forwards' | 'backwards') {
   // convert to raw for firefox
   const rawLine = displayLine.value ? structuredClone(JSON.parse(JSON.stringify(displayLine.value))) : null
-  const rawFromArena = structuredClone(JSON.parse(JSON.stringify(routeArenaChannel.value)))
+  const rawFromArena = structuredClone(JSON.parse(JSON.stringify(urlIsArenaChannel.value)))
   const rawUrl = window.location.href
 
   // send the displayed line to background script
@@ -77,7 +103,7 @@ async function startRide(dir: string) {
 }
 
 async function stopRide() {
-  ridingAnimation.value = false
+  commutingAnimation.value = false
   await storage.setItem(`local:commuting:${tabId.value}`, false)
 }
 
@@ -93,25 +119,58 @@ async function openLine(slug: string) {
   const currentLine = lines.value.find(l => l.slug === slug)
   if (!currentLine) {
     console.error("Couldnt find line with slug:", slug)
+    lineOpen.value = false
     return
   }
   displayLineContents.value = new Map()
   displayLine.value = currentLine
+  nextPage.value = null
 
-  if (currentLine.contents?.length != currentLine.length) {
-   browser.runtime.sendMessage({
-      type: "getLineContents", value: {
-        slug,
-        length: currentLine.length,
-      }
-    })
-  }
+  browser.runtime.sendMessage({
+    type: "getLineContents", value: {
+      slug,
+      page: 1,
+    }
+  })
+
 }
 
 // header display mode functionality
 async function changeHeaderMode(open: boolean) {
   headerOpen.value = open
   await storage.setItem('local:headerOpen', open)
+}
+
+// get more content when scrolling
+async function getNextPageFromLine() {
+  if (!displayLine.value || nextPage.value === null) return
+  browser.runtime.sendMessage({
+    type: 'getLineContents',
+    value: {
+      slug: displayLine.value.slug,
+      page: nextPage.value
+    }
+  })
+  nextPage.value = null
+}
+
+function fetchButton() {
+  changeHeaderMode(true)
+  fetchLines()
+}
+
+async function fetchLines() {
+  const title = document.title
+  url.value = window.location.href
+  try {
+    browser.runtime.sendMessage({
+      type: "fetchLines",
+      value: { title, url: url.value }
+    })
+    searched.value = true
+  } catch (error) {
+    console.error("failed to fetch lines:", error)
+  }
 }
 
 // ======================================= Mounted ===========================================
@@ -130,59 +189,67 @@ onMounted(async () => {
 
   // get commuting values from store
   commutingLine.value = await storage.getItem(`local:currentLine:${tabId.value}`)
-  mode.value = await storage.getItem<string>(`local:mode:${tabId.value}`) || "idle"
+  mode.value = await storage.getItem<'idle' | 'leaving' | 'commuting' | 'arriving' | 'resting'>(`local:mode:${tabId.value}`) || "idle"
   commuting.value = !(mode.value === 'idle')
   funMode.value = await storage.getItem(`local:funMode`) || false
 
-  direction.value = await storage.getItem<string | null>(`local:direction:${tabId.value}`) || null
+  direction.value = await storage.getItem<'forwards' | 'backwards' | null>(`local:direction:${tabId.value}`) || null
 
-  const isLoggedIn = !!(await storage.getItem<boolean>('local:token'))
+  const isLoggedIn = !!(await storage.getItem<string>('local:token'))
 
-  routeArenaChannel.value = isAreNaChannel()
-  console.log(routeArenaChannel.value)
+  urlIsArenaChannel.value = isAreNaChannel()
 
   // if we are on a are.na channel fetch this channel
-  if (routeArenaChannel.value) {
+  if (urlIsArenaChannel.value) {
     browser.runtime.sendMessage({
       type: "getLine",
       // are.na channel routes are always /username/channel-slug
       value: { slug: window.location.pathname.split('/')[2] }
     })
-  } else {
+  } else if (commuting.value) {
     // search for block with this title in are.na
-    const title = document.title
-    url.value = window.location.href
-    try {
-      browser.runtime.sendMessage({
-        type: "fetchLines",
-        value: { title, url: url.value }
-      })
-    } catch (error) {
-      console.error("failed to fetch lines:", error)
-    }
+    fetchLines()
   }
-
 
   // when receiving stations from call add them to lines array
   browser.runtime.onMessage.addListener((message) => {
     if (message.type === "channelsReceived") {
-      // console.log("received channels", message.channels) // for debugging
       // deduplicate channels
       const all = [...message.channels, ...lines.value]
       const linesMap = new Map(all.map(c => [c.id || c.slug, c]))
-      // too long lines will take more than our max requests if not logged in
-      lines.value = Array.from(linesMap.values()).filter(l => isLoggedIn ? l.length < 6000 : l.length < 1500)
+      // as we cant know where in a channel we can find the current station we only use channels with 300 blocks or less, so we only need max 3 requests to find our station
+      lines.value = Array.from(linesMap.values()).filter((l: ArenaChannel) => l.counts.contents <= 300)
       // displayLine.value = lines.value[0] // for debugging
     } else if (message.type === "arenaChannelReceived") {
       lines.value = [message.value.channel]
     } else if (message.type === "channel-contents") {
-      if(!displayLine.value) return
+      if (!displayLine.value) return
       message.value.contents.forEach((content: ArenaBlock, i: number) => {
-        const lineIndex:number = (message.value.page - 1) * message.value.per + i  
+        const lineIndex: number = (message.value.page - 1) * message.value.per + i
         displayLineContents.value.set(lineIndex, content)
       })
       displayLine.value.contents = Array.from(displayLineContents.value.values())
-      displayLine.value.contents = displayLine.value.contents?.filter((s: any) => s.class === 'Link')
+      displayLine.value.contents = displayLine.value.contents?.filter((s: any) => s.type === 'Link')
+
+      nextPage.value = message.value.next
+      // if we haven't fetched everything yet, we have a look if the current site is missing, if it is, we fetch the next page and so on
+      if (message.value.next) {
+        const idx = displayLine.value.contents.findIndex(station => {
+          if (station.type !== 'Channel' && station.source) {
+            return isSameRoute(station.source.url, url.value)
+          }
+          return false
+        })
+        // if we cant find the current site we fetch the next page
+        if (idx < 0) {
+          browser.runtime.sendMessage({
+            type: "getLineContents", value: {
+              slug: message.value.slug,
+              page: message.value.next,
+            }
+          })
+        }
+      }
     }
   })
 
@@ -192,7 +259,7 @@ onMounted(async () => {
     commutingLine.value = newVal
   })
 
-  const modeUnwatch = storage.watch(`local:mode:${tabId.value}`, (newVal: string | null) => {
+  const modeUnwatch = storage.watch(`local:mode:${tabId.value}`, (newVal: 'idle' | 'leaving' | 'commuting' | 'arriving' | 'resting' | null) => {
     // console.log("mode changed to", newVal) // leave for debugging
     if (newVal !== null) {
       if (newVal === 'idle') {
@@ -207,7 +274,7 @@ onMounted(async () => {
       } else if (newVal === 'leaving' || newVal === 'arriving') {
         lineOpen.value = false
         // trigger riding animations
-        ridingAnimation.value = true
+        commutingAnimation.value = true
       }
     }
   })
@@ -243,12 +310,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div :class="{ 'container': true, 'full-height': ridingAnimation && funMode }" id="web-extension-subway">
+  <div :class="{ 'container': true, 'full-height': commutingAnimation && funMode }" id="web-extension-subway">
     <!-- ================================= visuals for fun mode ============================================ -->
     <!-- next website thumbnail -->
     <template v-if="funMode && nextStation && nextStation.image">
       <img id="next-station-img" :class="{ 'moved-right': mode === 'commuting' || mode === 'leaving' }"
-        :src="nextStation.image.original.url" alt="">
+        :src="nextStation.image.src" alt="">
     </template>
 
     <!-- subway tunnel background -->
@@ -268,28 +335,30 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- The Component rendering the current Line or a Line preview -->
-    <template v-if="lineOpen">
-      <LineDisplay :line="displayLine" @close="() => lineOpen = false" :station-index="stationIndex"
-        :commuting="ridingAnimation" :next-station-index="nextStationIndex" />
+    <template v-if="lineOpen && displayLine">
+      <LineDisplay :line="displayLine" @close="() => lineOpen = false" @more-stations="getNextPageFromLine"
+        :station-index="stationIndex" :commuting="commutingAnimation" :next-station-index="nextStationIndex"
+        :more-stations-available="nextPage !== null" />
     </template>
     <!-- The Bar at the bottom of the screen -->
-    <header v-if="!ridingAnimation && headerOpen !== null" :class="{ 'closed': !headerOpen }">
+    <header v-if="!commutingAnimation && headerOpen !== null" :class="{ 'closed': !headerOpen }">
       <!-- The Current Line when on a subway -->
       <LineAbbreviation v-if="commuting && commutingLine" :line="commutingLine" :inactive="false"
         @open="slug => openLine(slug)" />
       <!-- Action Buttons for when commuting -->
-      <button id="leave-button" v-if="commuting && !ridingAnimation" @click="stopRide" title="stop ride">
+      <button id="leave-button" v-if="commuting && !commutingAnimation" @click="stopRide" title="stop ride">
         <div id="leave-icon"></div>
       </button>
-      <button id="next-station-button" v-if="commuting && !ridingAnimation" @click="goToNextStation()"
+      <button id="next-station-button" v-if="commuting && !commutingAnimation" @click="goToNextStation()"
         title="go to next site">
         <NextIcon />
       </button>
       <!-- The channels for this webpage -->
-      <ColoredPill id="lines-amount" v-if="!headerOpen" @click="changeHeaderMode(true)" :bg-color="'Highlight'"
-        :text-color="'HighlightText'" :abbr="`${lines.length}`" :rest-text="'&ThickSpace;channels'" />
-      <template v-else>
-        <p id="channel-label">channels:</p>
+      <ColoredPill id="lines-amount" v-if="!headerOpen && searched" @click="changeHeaderMode(true)"
+        :bg-color="'Highlight'" :text-color="'HighlightText'" :abbr="`${lines.length}`"
+        :rest-text="'&ThickSpace;lines'" />
+      <template v-else-if="headerOpen && searched">
+        <p id="channel-label">lines:</p>
         <template v-if="lines">
           <HorizontalScroll class="lines-container">
             <LineAbbreviation v-for="l in lines" :inactive="lineOpen && l.slug != displayLine?.slug" :line="l"
@@ -297,8 +366,14 @@ onBeforeUnmount(() => {
           </HorizontalScroll>
         </template>
       </template>
+      <template v-else>
+        <button v-if="headerOpen" id="fetch-button" @click="fetchButton">→ get lines</button>
+        <ColoredPill v-else id="fetch-button" @click="fetchButton" :bg-color="'Highlight'" :text-color="'HighlightText'"
+          :abbr="'→'" :rest-text="'&ThickSpace;get lines'" />
+
+      </template>
       <!-- Buttons enabling to start a ride towards the start or end of the channel -->
-      <div class="button-container" v-if="!commuting && displayLine && displayLine.contents">
+      <div class="button-container" v-if="!commuting && displayLine && displayLine.contents?.length">
         <button v-if="stationIndex !== 0" @click="startRide('backwards')">
           <NextIcon class="next-icon backwards" /> <span>{{ displayLine.contents[0].title }}</span>
         </button>
@@ -309,7 +384,7 @@ onBeforeUnmount(() => {
         </button>
       </div>
       <!-- The Countdown till we're going to the next station -->
-      <Countdown v-if="commuting && !ridingAnimation" :header-open="headerOpen" />
+      <Countdown v-if="commuting && !commutingAnimation" :header-open="headerOpen" />
       <!-- Close Header Button -->
       <button v-if="headerOpen" id="close-all" @click="changeHeaderMode(false)">
         <CloseIcon />
@@ -331,6 +406,10 @@ onBeforeUnmount(() => {
 
 .container.full-height {
   height: 100%;
+}
+
+#fetch-button {
+  white-space: nowrap;
 }
 
 #next-station-button,

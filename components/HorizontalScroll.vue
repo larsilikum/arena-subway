@@ -1,4 +1,11 @@
 <script lang="ts" setup>
+const props = defineProps<{
+  shouldEmit?: boolean
+}>()
+
+const emits = defineEmits<{
+  (e: 'scrolledToEnd'): void
+}>()
 const scrollContainer = ref<HTMLElement | null>(null)
 
 let scrollLeft = 0
@@ -7,6 +14,9 @@ const handleHorizontalScroll = (e: WheelEvent) => {
     e.preventDefault()
     scrollLeft = Math.min(Math.max(scrollLeft + e.deltaY, 0), scrollContainer.value.scrollWidth - scrollContainer.value.clientWidth)
     scrollContainer.value.scrollLeft = scrollLeft
+  }
+  if (props.shouldEmit && scrollContainer.value && scrollContainer.value.scrollLeft >= (scrollContainer.value.scrollWidth - scrollContainer.value.clientWidth) - 30) {
+    emits('scrolledToEnd')
   }
 }
 

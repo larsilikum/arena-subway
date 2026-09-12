@@ -1,18 +1,28 @@
-import { ArenaBlock, ArenaChannel, Station, Message } from "@/types"
-import { apiChannelToArenaChannel, blockToStation } from "@/types/type_conversions"
-import { fetchBlockChannels, fetchChannel, fetchChannelContents, fetchSearchBlocks, isLoggedIn } from "./arena-client"
-
+import type { Block, Channel } from '@aredotna/sdk'
+import type { ArenaBlock, ArenaChannel, Message } from '@/types'
+import {
+  apiBlockToArenaBlock,
+  apiChannelToArenaChannel,
+} from '@/types/type_conversions'
+import {
+  fetchBlockChannels,
+  fetchChannel,
+  fetchChannelContents,
+  fetchSearchBlocks,
+  isLoggedIn,
+  PER,
+} from './arena-client'
 
 // ============================================== storage wrapper =================================================
 // get Channel when we are on arena channel page
 export async function getLine(slug: string, tab: Browser.tabs.Tab | undefined) {
-  if(!tab || !tab.id) return
+  if (!tab || !tab.id) return
   // search channel in storage
-  let channel:ArenaChannel | null
+  let channel: ArenaChannel | null
   channel = await getChannelBySlug(slug)
   // fetch channel if it isnt found in storage
   if (!channel) {
-    const response: ArenaChannel = await fetchChannel(slug)
+    const response: Channel = await fetchChannel(slug)
     channel = apiChannelToArenaChannel(response)
     // channel.contents = await getChannelContents(slug, channel.length, channel.contents || [])
     // store channel
@@ -20,103 +30,156 @@ export async function getLine(slug: string, tab: Browser.tabs.Tab | undefined) {
   }
   // send channel to tab which requested
   browser.tabs.sendMessage(tab.id, {
-    type: "arenaChannelReceived",
+    type: 'arenaChannelReceived',
     value: {
-      channel
-    }
+      channel,
+    },
   })
 }
 
 // get arena channels for a site based on their title and if we're commuting also the channels for the
 // block in the current channel
-export async function getLines(message: Message, tab: Browser.tabs.Tab | undefined, currentStation: ArenaBlock) {
-  if (!tab) return
-  const firstPromises: any[]= []
+export async function getLines(
+  message: Message,
+  tab: Browser.tabs.Tab | undefined,
+  currentStation: ArenaBlock
+) {
+  if (!tab || !tab.id) return
+  const commuting = await storage.getItem(`local:commuting:${tab.id}`)
+  // when we are commuting we dont want to fetch new lines while browsing the current station, we just send the ones from the current station
+  if (
+    commuting &&
+    currentStation.source &&
+    !isSameRoute(currentStation.source.url, message.value.url)
+  ) {
+    const station = await getStationByUrl(currentStation.source.url)
+    sendStoredStationLines(tab.id, station?.channels || [])
+    return
+  }
+  const firstPromises: any[] = []
+  // get station if we have already been there
   const station = await getStationByUrl(message.value.url)
-  if (await storage.getItem(`local:commuting:${tab.id}`) && tab.id) {
-    firstPromises.push(
-      getCurrentStationLines(tab.id, currentStation)
-    )
+  // check if this tab is commuting at the moment
+  // when we're commuting we might get new channels for an already existing station by checking the blocks channels?
+  if (commuting && tab.id) {
+    firstPromises.push(getCurrentStationLines(tab.id, currentStation))
   } else if (station && tab.id) {
-    sendStoredStationLines(tab.id, station.channels)
+    sendStoredStationLines(tab.id, station.channels || [])
   }
   if (tab.id && !station) {
-    firstPromises.push(
-      getStationLinesByTitle(message, tab.id)
-    )
+    firstPromises.push(getStationLinesByTitle(message, tab.id))
   }
   if (firstPromises.length) Promise.allSettled(firstPromises)
 }
 
 function sendStoredStationLines(activeTabId: number, channels: ArenaChannel[]) {
-  browser.tabs.sendMessage(activeTabId, { type: "channelsReceived", channels})
+  browser.tabs.sendMessage(activeTabId, { type: 'channelsReceived', channels })
 }
 
-// get channels of block from current channel
-function getCurrentStationLines(activeTabId: number, currentStation: ArenaBlock) {
-  getBlockChannels(currentStation)
-    .then(d => {
-      browser.tabs.sendMessage(activeTabId, { type: "channelsReceived", channels: d })
+// get channels of block from current channel and send them to tab
+function getCurrentStationLines(
+  activeTabId: number,
+  currentStation: ArenaBlock
+) {
+  getBlockChannels(currentStation).then((d) => {
+    browser.tabs.sendMessage(activeTabId, {
+      type: 'channelsReceived',
+      channels: d,
     })
+  })
 }
 
 // get channels based on title of page
 export function getStationLinesByTitle(message: Message, activeTabId: number) {
   fetchSearchBlocks(message.value.title)
-    .then(async d => {
-      let filtered: ArenaBlock[] = d.blocks.filter((block: ArenaBlock) => block.source && isSameRoute(block.source.url, message.value.url))
+    .then(async (d) => {
+      // base_type doesnt seem to exist on arena block type
+      const convertedBlocks: (ArenaBlock | null)[] = d.data.map((b) =>
+        b.type !== 'Channel' && b.type !== 'User' && b.type !== 'Group'
+          ? apiBlockToArenaBlock(b)
+          : null
+      )
+      const filtered: (ArenaBlock | null)[] = convertedBlocks.filter(
+        (block: ArenaBlock | null) =>
+          block &&
+          block.source &&
+          isSameRoute(block.source.url, message.value.url)
+      )
       console.log(d, message.value.url)
-      console.log("filtered blocks count: ", filtered.length)
+      console.log('filtered blocks count: ', filtered.length)
 
       // only fetch a maximum of 10 blocks to reduce requests to arena
-      if(!(await isLoggedIn())) filtered.splice(10)
+      filtered.splice(10)
 
       if (filtered.length) {
         const promises: Promise<any>[] = []
-        for(let i = 0; i < filtered.length; i++) {
-          const block = filtered[i]          
+        for (let i = 0; i < filtered.length; i++) {
+          const block = filtered[i]
+          // null values should never appear here but typescript is not happy otherwise
+          if (!block) continue
           promises.push(
             // Dont fetch everything simultaneously
             Promise.resolve(() => {
-              setTimeout(() => {}, 200)
+              setTimeout(() => {}, 300)
             }).then(() => {
-              getBlockChannels(block)
-                .then((d) => {
-                  browser.tabs.sendMessage(activeTabId, { type: "channelsReceived", channels: d })
+              getBlockChannels(block).then((d) => {
+                browser.tabs.sendMessage(activeTabId, {
+                  type: 'channelsReceived',
+                  channels: d,
                 })
+              })
             })
           )
         }
-        Promise.allSettled(promises).catch(error => console.error(error))
+        Promise.allSettled(promises).catch((error) => console.error(error))
       }
     })
-    .catch(e => {
+    .catch((e) => {
       console.error(e)
     })
 }
 
-export async function getBlockChannels(block: ArenaBlock): Promise<ArenaChannel[]> {
+export async function getBlockChannels(
+  block: ArenaBlock
+): Promise<ArenaChannel[]> {
   const b = await getStationById(block.id)
-  if (b) return b.channels
+  if (b) return b.channels || []
   const fetched = await fetchBlockChannels(block.id)
   const newBlock = block
-  newBlock.channels = fetched.channels
+  newBlock.channels = fetched.data.map((channel) =>
+    apiChannelToArenaChannel(channel)
+  )
   await addBlockToStorage(newBlock)
-  return fetched.channels
+  return newBlock.channels
 }
 
-export async function getChannelContents(slug: string, channelLength: number, contentsFetched: (ArenaBlock | ArenaChannel)[] = [], activeTabId: number) {
-  const channel: any = await cacheGet(`channelContents:${slug}`)
-  if (channel) {
-    browser.tabs.sendMessage(activeTabId, { type: "channel-contents", value: { contents: channel.data, page: 1, per: channel.data.length, contentLength: channel.length }})
+export async function getChannelContents(
+  slug: string,
+  page: number,
+  activeTabId: number
+) {
+  const channelPage: any = await cacheGet(`channelContents:${slug}:${page}`)
+  console.log(channelPage)
+  if (channelPage) {
+    browser.tabs.sendMessage(activeTabId, {
+      type: 'channel-contents',
+      value: {
+        contents: channelPage.data,
+        page,
+        per: PER,
+        slug,
+        next: channelPage.next,
+      },
+    })
     return
   }
-  // reverse fetched data to have newest blocks in the beginning
-  const fetched = (await fetchChannelContents(slug, channelLength, contentsFetched, activeTabId))
+  const fetched = await fetchChannelContents(slug, page, activeTabId)
   try {
-    await cacheSet(`channelContents:${slug}`, { data: fetched })
-  }
-  catch (error) {
+    await cacheSet(`channelContents:${slug}:${page}`, {
+      data: fetched.data,
+      next: fetched.meta.next_page,
+    })
+  } catch (error) {
     console.error(error)
   }
 }
@@ -124,16 +187,16 @@ export async function getChannelContents(slug: string, channelLength: number, co
 // ========================================== STORAGE Interactions =====================================
 
 async function getStationById(id: number) {
-  const block = await cacheGet<Station>(`stations:${id}`)
+  const block = await cacheGet<ArenaBlock>(`stations:${id}`)
   if (block) return block
   const blockId = await cacheGet<number>(`stations_same_url:${id}`)
-  if (blockId) return await cacheGet<Station>(`stations:${blockId}`)
+  if (blockId) return await cacheGet<ArenaBlock>(`stations:${blockId}`)
   return null
 }
 
 async function getStationByUrl(url: string) {
   const id = await cacheGet<number>(`stations_url:${urlToStorageUrl(url)}`)
-  return await cacheGet<Station>(`stations:${id}`)
+  return await cacheGet<ArenaBlock>(`stations:${id}`)
 }
 
 async function getChannelBySlug(slug: string) {
@@ -143,16 +206,21 @@ async function getChannelBySlug(slug: string) {
 const urlLocks = new Map<string, Promise<void>>()
 
 async function addBlockToStorage(block: ArenaBlock) {
-  const station: Station = blockToStation(block)
-  const urlKey = urlToStorageUrl(station.source.url)
+  const station: ArenaBlock = block
+  const urlKey = urlToStorageUrl(station.source?.url || station.title)
 
   // Chain onto any existing write for this URL, or start fresh
   const prev = urlLocks.get(urlKey) ?? Promise.resolve()
   const next = prev.then(async () => {
-    const existingStation = await getStationByUrl(station.source.url)
-    if (existingStation) {
+    const existingStation = await getStationByUrl(
+      station.source?.url || station.title
+    )
+    if (existingStation && station.channels) {
+      if (!existingStation.channels) existingStation.channels = []
       existingStation.channels.push(...station.channels)
-      const channelMap = new Map(existingStation.channels.map(c => [c.id || c.slug, c]))
+      const channelMap = new Map(
+        existingStation.channels.map((c) => [c.id || c.slug, c])
+      )
       existingStation.channels = Array.from(channelMap.values())
 
       await cacheSet(`stations_same_url:${station.id}`, existingStation.id)
@@ -163,7 +231,10 @@ async function addBlockToStorage(block: ArenaBlock) {
     }
   })
 
-  urlLocks.set(urlKey, next.catch(() => {})) // don't let a failure poison the chain
+  urlLocks.set(
+    urlKey,
+    next.catch(() => {})
+  ) // don't let a failure poison the chain
   return next
 }
 
@@ -174,7 +245,6 @@ async function addChannelToStorage(channel: ArenaChannel) {
 function urlToStorageUrl(url: string): string {
   return new URL(url).hostname + new URL(url).pathname
 }
-
 
 // =================================== cache storage wrapper ================================================
 
@@ -200,7 +270,7 @@ async function registerCacheKey(fullKey: string) {
 async function unregisterCacheKey(fullKey: string) {
   const keys = (await storage.getItem<string[]>(CACHE_KEYS_KEY)) || []
 
-  const next = keys.filter(k => k !== fullKey)
+  const next = keys.filter((k) => k !== fullKey)
   await storage.setItem(CACHE_KEYS_KEY, next)
 }
 
@@ -217,7 +287,7 @@ async function cacheGet<T>(key: string): Promise<T | null> {
   memoryCache.set(fullKey, value)
 
   await storage.setMeta(fullKey, {
-    lastAccessed: Date.now()
+    lastAccessed: Date.now(),
   })
 
   return value
@@ -233,7 +303,7 @@ async function cacheSet<T>(key: string, value: T) {
 
   await storage.setMeta(fullKey, {
     lastAccessed: Date.now(),
-    size
+    size,
   })
 
   memoryCache.set(fullKey, value)
@@ -265,7 +335,7 @@ async function pruneIfNeeded() {
     entries.push({
       key,
       size: meta.size as number,
-      lastAccessed: meta.lastAccessed as number || 0
+      lastAccessed: (meta.lastAccessed as number) || 0,
     })
   }
   console.log(totalSize)
