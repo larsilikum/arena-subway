@@ -59,11 +59,11 @@ function handleClick() {
         <h2>{{ line.title }}</h2>
       </div>
     </div>
-    <div class="author-link">
+    <div v-if="!commuting" class="author-link">
       <p id="author" v-if="line.owner">by: {{ line.owner.name }}</p>
       <a id="channel-link" :href="`https://www.are.na/${line.owner.slug}/${line.slug}`">are.na channel</a>
     </div>
-    <div class="metadata">
+    <div v-if="!commuting" class="metadata">
       <p v-if="line.description?.markdown != ''" class="description">{{ line.description?.plain }}</p>
     </div>
     <HorizontalScroll class="stations" :should-emit="moreStationsAvailable" @scrolled-to-end="emits('moreStations')">
@@ -115,13 +115,14 @@ function handleClick() {
 
 .line.commuting {
   background: linear-gradient(to bottom, #fff 20%, #fffd 85%, transparent);
+  grid-template-columns: auto 1fr;
   /* background: #ffffffaa; */
-  width: 60%;
+  width: 55%;
   margin-inline: auto;
   color: #333 !important;
   animation: appear-commuting .3s ease-out;
   filter: url(#filter-big-sizes);
-  transform: perspective(15vw) rotateX(-10deg) translate(1.3vw, 15%);
+  transform: perspective(400px) rotateX(-20deg) translate(0, -5%) scaleY(0.8);
   transform-style: preserve-3d;
   transform-origin: center bottom;
   /* mix-blend-mode: hard-light; */
@@ -198,6 +199,11 @@ h2 {
   font-weight: normal;
   font-size: x-large;
   line-height: 1;
+}
+
+.line.commuting h2 {
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 #author,

@@ -37,6 +37,7 @@ const commuting = ref(false)
 // state of the commute / subway
 const mode = ref<'idle' | 'leaving' | 'commuting' | 'arriving' | 'resting'>('idle')
 const funMode = ref<boolean>(false)
+const isPremium = ref<boolean>(false)
 
 // ui refs
 // if the navigation is maximized or not
@@ -132,7 +133,6 @@ async function openLine(slug: string) {
       page: 1,
     }
   })
-
 }
 
 // header display mode functionality
@@ -195,7 +195,8 @@ onMounted(async () => {
 
   direction.value = await storage.getItem<'forwards' | 'backwards' | null>(`local:direction:${tabId.value}`) || null
 
-  const isLoggedIn = !!(await storage.getItem<string>('local:token'))
+  const tier = await storage.getItem<string | null>('local:tier')
+  isPremium.value = !!tier && (tier === 'premium' || tier === 'supporter')
 
   urlIsArenaChannel.value = isAreNaChannel()
 
@@ -218,7 +219,7 @@ onMounted(async () => {
       const all = [...message.channels, ...lines.value]
       const linesMap = new Map(all.map(c => [c.id || c.slug, c]))
       // as we cant know where in a channel we can find the current station we only use channels with 300 blocks or less, so we only need max 3 requests to find our station
-      lines.value = Array.from(linesMap.values()).filter((l: ArenaChannel) => l.counts.contents <= 300)
+      lines.value = Array.from(linesMap.values()).filter((l: ArenaChannel) => l.counts.contents <= (useAppConfig()).max_channel_length)
       // displayLine.value = lines.value[0] // for debugging
     } else if (message.type === "arenaChannelReceived") {
       lines.value = [message.value.channel]
@@ -259,6 +260,10 @@ onMounted(async () => {
     commutingLine.value = newVal
   })
 
+  const premiumUnwatch = storage.watch(`local:tier`, (tier: string | null) => {
+    isPremium.value = !!tier && (tier === 'premium' || tier === 'supporter')
+  })
+
   const modeUnwatch = storage.watch(`local:mode:${tabId.value}`, (newVal: 'idle' | 'leaving' | 'commuting' | 'arriving' | 'resting' | null) => {
     // console.log("mode changed to", newVal) // leave for debugging
     if (newVal !== null) {
@@ -286,6 +291,7 @@ onMounted(async () => {
     currentLineUnwatch()
     modeUnwatch()
     funModeUnwatch()
+    premiumUnwatch()
   }
 })
 
@@ -366,14 +372,19 @@ onBeforeUnmount(() => {
           </HorizontalScroll>
         </template>
       </template>
-      <template v-else>
+      <template v-else-if="isPremium">
         <button v-if="headerOpen" id="fetch-button" @click="fetchButton">→ get lines</button>
         <ColoredPill v-else id="fetch-button" @click="fetchButton" :bg-color="'Highlight'" :text-color="'HighlightText'"
           :abbr="'→'" :rest-text="'&ThickSpace;get lines'" />
-
+      </template>
+      <template v-else>
+        <p v-if="headerOpen" id="no-premium">you need to be logged in with a premium/supporter account to enter the
+          subway.</p>
+        <ColoredPill v-else id="no-premium" @click="changeHeaderMode(true)" :bg-color="'Highlight'"
+          :text-color="'HighlightText'" :abbr="'!'" :rest-text="'&ThickSpace;not logged in with premium account'" />
       </template>
       <!-- Buttons enabling to start a ride towards the start or end of the channel -->
-      <div class="button-container" v-if="!commuting && displayLine && displayLine.contents?.length">
+      <div class="button-container" v-if="!commuting && displayLine && displayLine.contents?.length && lineOpen">
         <button v-if="stationIndex !== 0" @click="startRide('backwards')">
           <NextIcon class="next-icon backwards" /> <span>{{ displayLine.contents[0].title }}</span>
         </button>
@@ -409,6 +420,10 @@ onBeforeUnmount(() => {
 }
 
 #fetch-button {
+  white-space: nowrap;
+}
+
+#no-premium {
   white-space: nowrap;
 }
 

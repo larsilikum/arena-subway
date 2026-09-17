@@ -30,3 +30,9 @@ function pad(n: number): string {
   }
   return n.toString()
 }
+
+// Source - https://stackoverflow.com/a/47480429
+// Posted by Etienne Martin, modified by community. See post 'Timeline' for change history
+// Retrieved 2026-09-16, License - CC BY-SA 4.0
+
+export const delay = (ms: number) => new Promise((res) => setTimeout(res, ms))

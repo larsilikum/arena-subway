@@ -10,8 +10,11 @@ import {
   fetchChannelContents,
   fetchSearchBlocks,
   isLoggedIn,
+  isPremium,
   PER,
 } from './arena-client'
+import { delay } from '@/utils'
+import { useAppConfig } from '#imports'
 
 // ============================================== storage wrapper =================================================
 // get Channel when we are on arena channel page
@@ -66,7 +69,8 @@ export async function getLines(
   } else if (station && tab.id) {
     sendStoredStationLines(tab.id, station.channels || [])
   }
-  if (tab.id && !station) {
+  // check if the user has premium account, as it is required for using the search endpoint
+  if (tab.id && !station && (await isPremium())) {
     firstPromises.push(getStationLinesByTitle(message, tab.id))
   }
   if (firstPromises.length) Promise.allSettled(firstPromises)
@@ -105,33 +109,33 @@ export function getStationLinesByTitle(message: Message, activeTabId: number) {
           block.source &&
           isSameRoute(block.source.url, message.value.url)
       )
-      console.log(d, message.value.url)
-      console.log('filtered blocks count: ', filtered.length)
 
       // only fetch a maximum of 10 blocks to reduce requests to arena
       filtered.splice(10)
 
       if (filtered.length) {
-        const promises: Promise<any>[] = []
+        let channelAmount = 0
         for (let i = 0; i < filtered.length; i++) {
           const block = filtered[i]
           // null values should never appear here but typescript is not happy otherwise
           if (!block) continue
-          promises.push(
-            // Dont fetch everything simultaneously
-            Promise.resolve(() => {
-              setTimeout(() => {}, 300)
-            }).then(() => {
-              getBlockChannels(block).then((d) => {
-                browser.tabs.sendMessage(activeTabId, {
-                  type: 'channelsReceived',
-                  channels: d,
-                })
-              })
-            })
+          const channels = await getBlockChannels(block)
+          // only count channels we are going to use
+          const shortChannels = channels.filter(
+            (channel) =>
+              channel.counts.contents < useAppConfig().max_channel_length
           )
+          channelAmount += shortChannels.length
+          // could also just send the filtered channels, but i think its more readable filtering again in app.vue
+          browser.tabs.sendMessage(activeTabId, {
+            type: 'channelsReceived',
+            channels: channels,
+          })
+          // we are happy if we have 20 channels and have fetched at least two blocks, we can stop bothering the arena api
+          if (channelAmount > 30 && i > 0) break
+          // wait 500 ms before doing next request
+          await delay(500)
         }
-        Promise.allSettled(promises).catch((error) => console.error(error))
       }
     })
     .catch((e) => {

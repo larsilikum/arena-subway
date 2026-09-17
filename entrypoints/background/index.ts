@@ -97,6 +97,9 @@ export default defineBackground(() => {
       case 'goToNextStation':
         tabSkipStation.set(sender.tab?.id, true)
         break
+      case 'skipStationAtId':
+        tabSkipStation.set(message.value.id, true)
+        break
       case 'getLine':
         getLine(message.value.slug, sender.tab)
         break

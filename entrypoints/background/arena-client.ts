@@ -26,6 +26,13 @@ export async function isLoggedIn(): Promise<boolean> {
   return loggedIn
 }
 
+export async function isPremium(): Promise<boolean> {
+  if (!(await isLoggedIn())) return false
+  const tier = await storage.getItem<string>('local:tier')
+  if (tier === 'premium' || tier === 'supporter') return true
+  return false
+}
+
 let arena = createArena({
   token: async () => (await storage.getItem<string>('local:token')) || '',
   retry: { respectRateLimits: true, maxRetries: 1 },
@@ -143,5 +150,13 @@ export async function getArenaToken(): Promise<string | null> {
     token: tokenRes.access_token,
     retry: { respectRateLimits: true, maxRetries: 1 },
   })
+
+  await arena.ping()
+  const tier = arena.rateLimit?.tier
+
+  console.log(tier)
+
+  if (tier) await storage.setItem('local:tier', tier)
+
   return tokenRes.access_token
 }

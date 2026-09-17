@@ -1,15 +1,20 @@
 <script lang="ts" setup>
-defineProps<{
+const props = defineProps<{
   inactive?: boolean,
   bgColor: string,
   textColor: string,
   abbr: string,
-  restText: string
+  restText: string | null
 }>()
+
+const time = computed(() => {
+  return `${Math.max(((props.restText?.length || 10) - 7) * .1, 1)}s`
+})
 </script>
 
 <template>
-  <div :class="{'lines': true, 'inactive': inactive }" :style="`background-color: ${bgColor}; border: .05em solid ${textColor};`">
+  <div :class="{ 'lines': true, 'inactive': inactive }"
+    :style="`background-color: ${bgColor}; border: .05em solid ${textColor};`">
     <h5 class="line-abbr" :style="`color: ${textColor};`">{{ abbr }}<span>{{ restText }}</span></h5>
   </div>
 </template>
@@ -57,7 +62,7 @@ h5 {
 }
 
 .lines:hover .line-abbr {
-  animation: marquee 2s alternate ease-in-out infinite;
+  animation: marquee v-bind(time) alternate ease-in-out infinite;
   transform-origin: 0 0;
 }
 
@@ -76,6 +81,7 @@ h5 {
   from {
     transform: translateX(0);
   }
+
   to {
     transform: translateX(calc(-100% + 5rem));
   }
