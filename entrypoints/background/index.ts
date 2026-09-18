@@ -42,6 +42,7 @@ export default defineBackground(() => {
     ['responseHeaders'] //  optional array of strings
   )
 
+  // TODO: get modeTimes and funMode from storage if they exist
   const modeTimes = {
     leaving: 2000,
     commuting: 10000,
@@ -94,6 +95,15 @@ export default defineBackground(() => {
           sender.tab
         )
         break
+      case 'updateLine':
+        constructLine(
+          message.value.line,
+          // we don't use the url when updating
+          '',
+          message.value.fromArena,
+          sender.tab
+        )
+        break
       case 'goToNextStation':
         tabSkipStation.set(sender.tab?.id, true)
         break
@@ -118,6 +128,60 @@ export default defineBackground(() => {
     }
   }
 
+  // this function is responsible to create the line for the commuting logic. It creates the line when starting a ride but also updates the line once we fetch more content.
+  async function constructLine(
+    line: ArenaChannel,
+    url: string,
+    fromArena: boolean,
+    tab: Browser.tabs.Tab | undefined
+  ) {
+    if (!tab || !line.contents) return
+    // set currentLine in store for content script to diplay while commuting
+    await storage.setItem(`local:currentLine:${tab.id}`, line)
+
+    // we want to get the direction from storage so we can also use this function when already commuting and just updating the line with new stations
+    const direction = await storage.getItem(`local:direction:${tab.id}`)
+
+    // only use Links (no images, pdfs etc.)
+    const contentsArray = line.contents
+    let newStations = contentsArray.filter(
+      (content): content is ArenaBlock => content.type === 'Link'
+    )
+    if (newStations.length === 0) return
+
+    // our departure station based on the current url
+    let stationIndex: number = 0
+
+    // if we are already commuting (stations is filled) we want to search for the old start url instead of the url from the current station.
+    const startUrl = stations.length ? stations[0].source?.url : url
+
+    // if we dont start from an arena channel, we need to find where we are on the line and cut the stations in the other direction
+    if (!fromArena) {
+      // get station index of the current url
+      stationIndex = 0
+      stationIndex = newStations.findIndex(
+        (station) =>
+          station.source && isSameRoute(station.source?.url, startUrl || '')
+      )
+      if (stationIndex < 0) {
+        console.error('Couldnt find station with this url in line', startUrl)
+      }
+      // depending on which direction we're going we cut the rest of the array and reverse it for going the other direction
+      if (direction === 'forwards') {
+        newStations = newStations.slice(stationIndex)
+      } else {
+        newStations = newStations.slice(0, stationIndex + 1).reverse()
+      }
+    } else {
+      // if we start from arena we only can go forwards or backwards through all stations
+      if (direction === 'backwards') {
+        newStations = newStations.reverse()
+      }
+    }
+    // update the stations array
+    stations = newStations
+  }
+
   async function startLine(
     line: ArenaChannel,
     url: string,
@@ -126,54 +190,32 @@ export default defineBackground(() => {
     tab: Browser.tabs.Tab | undefined
   ) {
     if (!tab || !line.contents) return
-    // set currentLine in store for content script to diplay while commuting
-    await storage.setItem(`local:currentLine:${tab.id}`, line)
+
     await storage.setItem(`local:direction:${tab.id}`, direction)
     await storage.setItem(`local:commuting:${tab.id}`, true)
 
-    // i know this is ugly, but i havent figured out a way to have the lineIndex stay the same for all requests except like this for now
-    // this will be automatically updated to 0 in the commutingCascade
-    lineIndex = -1
-
-    // only use Links (no images, pdfs etc.)
-    const contentsArray = Array.from(line.contents.values()).flat()
-    stations = contentsArray.filter(
-      (content): content is ArenaBlock => content.type === 'Link'
+    const currentIndex = line.contents.findIndex(
+      (station) =>
+        station.type !== 'Channel' &&
+        station.source &&
+        isSameRoute(station.source.url, url)
     )
-    if (stations.length === 0) return
+    await storage.setItem(`local:currentIndex:${tab.id}`, currentIndex)
 
-    // our departure station based on the current url
-    let stationIndex: number = 0
+    // in commutingCascade we first increment the lineIndex, so starting from a station will arrive at index 1 of stations, while fromArena will arrive at index 0 from stations, as we depart from the arena page, which is not a station in the line.
+    lineIndex = 0
+    if (fromArena) lineIndex = -1
 
-    // if we dont start from an arena channel, we need to find where we are on the line and cut the stations in the other direction
-    if (!fromArena) {
-      // start from the next station after the current, will be 1 when navigating to the first station on the line
-      lineIndex = 0
-      // get station index of the current url
-      stationIndex = 0
-      stationIndex = stations.findIndex(
-        (station) => station.source && isSameRoute(station.source?.url, url)
+    await constructLine(line, url, fromArena, tab)
+
+    commutingCascade(tab, async (i: number) => {
+      const currLine = await storage.getItem<ArenaChannel>(
+        `local:currentLine:${tab.id}`
       )
-      if (stationIndex < 0) {
-        console.error('Couldnt find station with this url in line', url)
-      }
-      // depending on which direction we're going we cut the rest of the array and reverse it for going the other direction
-      if (direction === 'forwards') {
-        stations = stations.slice(stationIndex)
-      } else {
-        stations = stations.slice(0, stationIndex + 1).reverse()
-      }
-    } else {
-      // if we start from arena we only can go forwards or backwards through all stations
-      if (direction === 'backwards') {
-        stations = stations.reverse()
-      }
-    }
-
-    commutingCascade(stations.length, tab, async (i: number) => {
+      const contents = currLine?.contents || []
       await storage.setItem(
         `local:currentIndex:${tab.id}`,
-        contentsArray.findIndex(
+        contents.findIndex(
           (s) =>
             s.type !== 'Channel' &&
             isSameRoute(s.source?.url || '', stations[i].source?.url || '_')
@@ -183,13 +225,9 @@ export default defineBackground(() => {
     })
   }
 
-  async function commutingCascade(
-    length: number,
-    tab: Browser.tabs.Tab,
-    f: Function
-  ) {
+  async function commutingCascade(tab: Browser.tabs.Tab, f: Function) {
     const isCommuting = await storage.getItem(`local:commuting:${tab.id}`)
-    if (lineIndex < length - 1 && isCommuting) {
+    if (lineIndex < stations.length - 1 && isCommuting) {
       // if animation should be played we set to false here else before going to next url
       tabSkipStation.set(tab.id, false)
       await secondLoopModeUpdate('leaving', tab)
@@ -200,10 +238,16 @@ export default defineBackground(() => {
       // reset tabSkipStation for next page
       tabSkipStationNoAnimation.set(tab.id, false)
       await f(lineIndex)
-      if (lineIndex !== length - 1) await secondLoopModeUpdate('resting', tab)
-      commutingCascade(length, tab, f)
+      // we also rest at the last station, so we get at least the commuting line in content script.
+      // could maybe be handled in a better way
+      // if (lineIndex !== stations.length - 1)
+      await secondLoopModeUpdate('resting', tab)
+      commutingCascade(tab, f)
     } else {
       lineIndex = 0
+      stations = []
+      await storage.setItem(`local:currentLine:${tab.id}`, null)
+      await storage.setItem(`local:currentIndex:${tab.id}`, null)
       await storage.setItem(`local:mode:${tab.id}`, 'idle')
       await storage.setItem(`local:commuting:${tab.id}`, false)
       return

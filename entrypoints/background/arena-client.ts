@@ -62,26 +62,18 @@ export async function fetchChannel(slug: string) {
 
 export async function fetchChannelContents(
   slug: string,
-  page: number,
-  activeTabId: number
-): Promise<{ data: (ArenaChannel | ArenaBlock)[]; meta: PaginationMeta }> {
+  page: number
+): Promise<{
+  data: (ArenaChannel | ArenaBlock)[]
+  next: number | null | undefined
+}> {
   const contents = await arena.channels.contents(slug, {
     per: PER,
     page: page,
     sort: 'position_desc',
   })
   const parsedContents = parseChannelContents(contents.data)
-  browser.tabs.sendMessage(activeTabId, {
-    type: 'channel-contents',
-    value: {
-      contents: parsedContents,
-      page,
-      per: PER,
-      slug,
-      next: contents.meta.next_page,
-    },
-  })
-  return { data: parsedContents, meta: contents.meta }
+  return { data: parsedContents, next: contents.meta.next_page }
 }
 
 // ========================================== ARE.NA AUTH =========================================

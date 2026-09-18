@@ -162,30 +162,31 @@ export async function getChannelContents(
   page: number,
   activeTabId: number
 ) {
-  const channelPage: any = await cacheGet(`channelContents:${slug}:${page}`)
-  console.log(channelPage)
-  if (channelPage) {
-    browser.tabs.sendMessage(activeTabId, {
-      type: 'channel-contents',
-      value: {
-        contents: channelPage.data,
-        page,
-        per: PER,
-        slug,
-        next: channelPage.next,
-      },
-    })
-    return
+  let channelPage: {
+    data: (ArenaChannel | ArenaBlock)[]
+    next: number | null | undefined
+  } | null = await cacheGet(`channelContents:${slug}:${page}`)
+
+  if (!channelPage) {
+    const fetched = await fetchChannelContents(slug, page)
+    try {
+      await cacheSet(`channelContents:${slug}:${page}`, fetched)
+    } catch (error) {
+      console.error(error)
+    }
+    channelPage = fetched
   }
-  const fetched = await fetchChannelContents(slug, page, activeTabId)
-  try {
-    await cacheSet(`channelContents:${slug}:${page}`, {
-      data: fetched.data,
-      next: fetched.meta.next_page,
-    })
-  } catch (error) {
-    console.error(error)
-  }
+
+  browser.tabs.sendMessage(activeTabId, {
+    type: 'channel-contents',
+    value: {
+      contents: channelPage.data,
+      page,
+      per: PER,
+      slug,
+      next: channelPage.next,
+    },
+  })
 }
 
 // ========================================== STORAGE Interactions =====================================

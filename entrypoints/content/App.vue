@@ -103,6 +103,19 @@ async function startRide(dir: 'forwards' | 'backwards') {
   direction.value = dir
 }
 
+async function updateRide() {
+  // convert to raw for firefox
+  const rawLine = displayLine.value ? structuredClone(JSON.parse(JSON.stringify(displayLine.value))) : null
+  const rawFromArena = structuredClone(JSON.parse(JSON.stringify(urlIsArenaChannel.value)))
+
+  await browser.runtime.sendMessage({
+    type: "updateLine", value: {
+      line: rawLine,
+      fromArena: rawFromArena,
+    }
+  })
+}
+
 async function stopRide() {
   commutingAnimation.value = false
   await storage.setItem(`local:commuting:${tabId.value}`, false)
@@ -233,14 +246,22 @@ onMounted(async () => {
       displayLine.value.contents = displayLine.value.contents?.filter((s: any) => s.type === 'Link')
 
       nextPage.value = message.value.next
+      console.log('next page: ', nextPage.value)
+
+      // if we got new content from the commutingLine we need to update the line in background script
+      if (commuting && displayLine.value.id === commutingLine.value?.id && displayLine.value.contents.length > (commutingLine.value.contents?.length || Infinity)) {
+        updateRide()
+      }
       // if we haven't fetched everything yet, we have a look if the current site is missing, if it is, we fetch the next page and so on
-      if (message.value.next) {
+      // also we won't find the url of an arena channel in the contents so we stop directly.
+      if (message.value.next && !urlIsArenaChannel.value) {
         const idx = displayLine.value.contents.findIndex(station => {
           if (station.type !== 'Channel' && station.source) {
             return isSameRoute(station.source.url, url.value)
           }
           return false
         })
+        console.log('station index: ', idx)
         // if we cant find the current site we fetch the next page
         if (idx < 0) {
           browser.runtime.sendMessage({
@@ -249,6 +270,8 @@ onMounted(async () => {
               page: message.value.next,
             }
           })
+          // prevent fetching twice with intersection observer
+          nextPage.value = null
         }
       }
     }
@@ -265,7 +288,7 @@ onMounted(async () => {
   })
 
   const modeUnwatch = storage.watch(`local:mode:${tabId.value}`, (newVal: 'idle' | 'leaving' | 'commuting' | 'arriving' | 'resting' | null) => {
-    // console.log("mode changed to", newVal) // leave for debugging
+    console.log("mode changed to", newVal) // leave for debugging
     if (newVal !== null) {
       if (newVal === 'idle') {
         commuting.value = false

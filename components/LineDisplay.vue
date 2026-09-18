@@ -23,10 +23,15 @@ const color = computed<string>(() => {
   return hashColor.hashStringToColor(props.line.slug).primary
 })
 
+let observer: IntersectionObserver | null = null
+
 const textColor = computed<string>(() => {
   if (!props.line) return '#fff'
   return hashColor.hashStringToColor(props.line.slug).secondary
 })
+
+const stationScrollContainer = useTemplateRef('stationScrollContainer')
+const nextPage = useTemplateRef('nextPage')
 
 //@ts-expect-error
 const filteredContents = computed<ArenaBlock[]>(() => {
@@ -36,6 +41,35 @@ const filteredContents = computed<ArenaBlock[]>(() => {
 
 onMounted(() => {
   url.value = window.location.href
+  setTimeout(() => {
+    console.log('more Stations available: ', props.moreStationsAvailable)
+    console.log('scroll container: ', stationScrollContainer.value?.scrollContainer)
+    console.log('nextPage eleent:', nextPage.value)
+    if (stationScrollContainer.value?.scrollContainer && nextPage.value) {
+      console.log('adding intersection observer')
+      const observerOptions = {
+        root: stationScrollContainer.value?.scrollContainer,
+        threshold: 1.0,
+      }
+      const observerCallback = (entries: IntersectionObserverEntry[]) => {
+        entries.forEach(entry => {
+          console.log('intersect: ', entry)
+          if (entry.isIntersecting && props.moreStationsAvailable) {
+            emits('moreStations')
+          }
+        })
+      }
+      observer = new IntersectionObserver(observerCallback, observerOptions)
+
+      observer.observe(nextPage.value)
+    }
+  }, 500)
+})
+
+onBeforeUnmount(() => {
+  if (observer && nextPage.value) {
+    observer.unobserve(nextPage.value)
+  }
 })
 
 const closed = ref<boolean>(false)
@@ -66,14 +100,14 @@ function handleClick() {
     <div v-if="!commuting" class="metadata">
       <p v-if="line.description?.markdown != ''" class="description">{{ line.description?.plain }}</p>
     </div>
-    <HorizontalScroll class="stations" :should-emit="moreStationsAvailable" @scrolled-to-end="emits('moreStations')">
+    <HorizontalScroll class="stations" ref="stationScrollContainer">
       <div class="stations-container">
         <hr id="stations-line" />
         <template v-for="(station, i) in filteredContents">
           <LineDisplayStation :station="station" :url="url" :color="color" :text-color="textColor"
             :commuting="commuting" :station-index="stationIndex" :index="i" :next-station-index="nextStationIndex" />
         </template>
-        <div v-if="moreStationsAvailable" id="next-page-placeholder"></div>
+        <div v-show="moreStationsAvailable" id="next-page-placeholder" ref="nextPage"></div>
       </div>
     </HorizontalScroll>
     <svg id="filter-svg">

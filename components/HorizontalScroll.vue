@@ -1,11 +1,4 @@
 <script lang="ts" setup>
-const props = defineProps<{
-  shouldEmit?: boolean
-}>()
-
-const emits = defineEmits<{
-  (e: 'scrolledToEnd'): void
-}>()
 const scrollContainer = ref<HTMLElement | null>(null)
 
 let scrollLeft = 0
@@ -15,9 +8,6 @@ const handleHorizontalScroll = (e: WheelEvent) => {
     scrollLeft = Math.min(Math.max(scrollLeft + e.deltaY, 0), scrollContainer.value.scrollWidth - scrollContainer.value.clientWidth)
     scrollContainer.value.scrollLeft = scrollLeft
   }
-  if (props.shouldEmit && scrollContainer.value && scrollContainer.value.scrollLeft >= (scrollContainer.value.scrollWidth - scrollContainer.value.clientWidth) - 30) {
-    emits('scrolledToEnd')
-  }
 }
 
 onMounted(() => {
@@ -25,6 +15,8 @@ onMounted(() => {
     scrollLeft = scrollContainer.value?.scrollLeft || 0
   }, 300)
 })
+
+defineExpose({ scrollContainer })
 </script>
 
 <template>
@@ -39,14 +31,16 @@ div {
   scroll-behavior: smooth;
 }
 
- /* Hide scrollbar for Chrome, Safari and Opera */
+/* Hide scrollbar for Chrome, Safari and Opera */
 div::-webkit-scrollbar {
   display: none;
 }
 
 /* Hide scrollbar for IE, Edge and Firefox */
 div {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
-} 
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
 </style>
