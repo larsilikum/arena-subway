@@ -110,8 +110,8 @@ export function getStationLinesByTitle(message: Message, activeTabId: number) {
           isSameRoute(block.source.url, message.value.url)
       )
 
-      // only fetch a maximum of 10 blocks to reduce requests to arena
-      filtered.splice(10)
+      // only fetch a maximum of 5 blocks to reduce requests to arena
+      filtered.splice(5)
 
       if (filtered.length) {
         let channelAmount = 0
@@ -131,7 +131,7 @@ export function getStationLinesByTitle(message: Message, activeTabId: number) {
             type: 'channelsReceived',
             channels: channels,
           })
-          // we are happy if we have 20 channels and have fetched at least two blocks, we can stop bothering the arena api
+          // we are happy if we have 30 channels and have fetched at least two blocks, we can stop bothering the arena api
           if (channelAmount > 30 && i > 0) break
           // wait 500 ms before doing next request
           await delay(500)

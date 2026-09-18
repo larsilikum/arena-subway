@@ -15,9 +15,11 @@ const props = defineProps<{
 const stationEl = ref<HTMLElement | null>(null)
 
 onMounted(() => {
-  if (props.stationIndex === props.index) {
-    stationEl.value?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
-  }
+  setTimeout(() => {
+    if (props.stationIndex === props.index) {
+      stationEl.value?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
+    }
+  }, 200)
 })
 </script>
 

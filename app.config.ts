@@ -9,5 +9,5 @@ declare module 'wxt/utils/define-app-config' {
 
 export default defineAppConfig({
   per: 100,
-  max_channel_length: 300,
+  max_channel_length: 600,
 })
