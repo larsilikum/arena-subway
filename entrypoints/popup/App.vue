@@ -5,11 +5,11 @@ import NextIcon from '@/components/NextIcon.vue'
 const restVal = ref<number>(30)
 const commVal = ref<number>(10)
 const funMode = ref<boolean>(false)
+const mode = ref<'idle' | 'leaving' | 'commuting' | 'arriving' | 'resting'>('idle')
 const enabled = ref<boolean>(false)
 const isAuthorized = ref<boolean>(false)
 const isPremium = ref<boolean>(false)
 
-const isCommuting = ref<boolean>(false)
 const tabId = ref<number | null>(null)
 
 function setStorage(key: string, value: number | boolean) {
@@ -33,8 +33,9 @@ async function stopCommute() {
   const id = await getCurrentTabId()
   if (!id) return
   await storage.setItem(`local:commuting:${id}`, false)
-  isCommuting.value = false
 }
+
+let unwatchMode = () => { }
 
 onMounted(async () => {
   restVal.value = await storage.getItem<number | null>('local:restingTime') || 30
@@ -43,9 +44,14 @@ onMounted(async () => {
 
   const id = await getCurrentTabId()
   if (id) {
-    const mode = await storage.getItem<'idle' | 'leaving' | 'commuting' | 'arriving' | 'resting'>(`local:mode:${tabId.value}`) || "idle"
-    isCommuting.value = mode !== 'idle'
+    mode.value = await storage.getItem<'idle' | 'leaving' | 'commuting' | 'arriving' | 'resting'>(`local:mode:${tabId.value}`) || "idle"
   }
+
+  unwatchMode = storage.watch(`local:mode:${id}`, (m: 'idle' | 'leaving' | 'commuting' | 'arriving' | 'resting' | null) => {
+    console.log('mode changed: ', m)
+    if (!m) return
+    mode.value = m
+  })
 
   const localEnabled = await storage.getItem<boolean | null>('local:enabled')
   enabled.value = localEnabled !== null ? localEnabled : false
@@ -69,15 +75,10 @@ const unwatchPremium = storage.watch('local:tier', tier => {
   isPremium.value = !!tier && (tier === 'premium' || tier === 'supporter')
 })
 
-const unwatchCommuting = storage.watch(`local:mode:${tabId.value}`, mode => {
-  if (mode === null) return
-  isCommuting.value = mode !== 'idle'
-})
-
 onBeforeUnmount(() => {
   unwatch()
   unwatchPremium()
-  unwatchCommuting()
+  unwatchMode()
 })
 </script>
 
@@ -124,7 +125,7 @@ onBeforeUnmount(() => {
         tier
       </span>
     </button>
-    <div v-if="isCommuting" class="commuting-buttons">
+    <div v-show="mode === 'resting'" class="commuting-buttons">
       <button id="leave-button" @click="stopCommute" title="stop ride">
         <div id="leave-icon"></div>
       </button>
