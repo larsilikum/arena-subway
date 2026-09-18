@@ -36,7 +36,7 @@ export async function isPremium(): Promise<boolean> {
 let arena = createArena({
   token: async () => (await storage.getItem<string>('local:token')) || '',
   retry: { respectRateLimits: true, maxRetries: 1 },
-  userAgent: 'arena-rail/0.1',
+  userAgent: 'arena-rail/0.1 (rail.lars.garden)',
 })
 
 // =========================================== DATA FETCHING ===========================================
@@ -92,7 +92,7 @@ export async function getArenaToken(): Promise<string | null> {
     arena = createArena({
       token,
       retry: { respectRateLimits: true, maxRetries: 1 },
-      userAgent: 'arena-rail/0.1',
+      userAgent: 'arena-rail/0.1 (rail.lars.garden)',
     })
     return token
   }
