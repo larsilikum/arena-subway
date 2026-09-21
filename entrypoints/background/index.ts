@@ -6,6 +6,7 @@ import { getChannelContents, getLine, getLines } from './storage'
 export default defineBackground(() => {
   // init loggedIn value
   const _ = isLoggedIn()
+  console.log('redirectUrl: ', browser.identity.getRedirectURL())
 
   let lineIndex = 0
   // stores boolean if url is to be skipped without animation (domain not found by dns or 404 error)

@@ -1,4 +1,4 @@
-import { createArena, PaginationMeta } from '@aredotna/sdk'
+import { createArena } from '@aredotna/sdk'
 import {
   generatePKCE,
   generateState,
@@ -79,12 +79,16 @@ export async function fetchChannelContents(
 
 // ========================================== ARE.NA AUTH =========================================
 
-const CLIENT_ID = 'OrdORBujGQriu963U--4jJtCP3aeo4m5unixjW6T-u8'
+let CLIENT_ID = ''
+
+if (import.meta.env.FIREFOX) {
+  CLIENT_ID = useAppConfig().firefox_arena_client_id
+} else {
+  CLIENT_ID = useAppConfig().chrome_arena_client_id
+}
 
 export async function getArenaToken(): Promise<string | null> {
   const redirectUri = browser.identity.getRedirectURL()
-
-  console.log(redirectUri)
 
   const token = await storage.getItem<string>('local:token')
   if (token) {
@@ -103,7 +107,7 @@ export async function getArenaToken(): Promise<string | null> {
 
   const authUrl = oauth.authorizeUrl({
     codeChallenge: pkce.codeChallenge,
-    scope: 'write',
+    scope: 'read',
     state,
   })
 
