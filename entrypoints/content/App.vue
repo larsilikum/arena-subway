@@ -198,7 +198,6 @@ onMounted(async () => {
 
   // get tabId
   tabId.value = await browser.runtime.sendMessage({ type: 'getTabId' })
-  console.log(tabId.value)
 
   // get commuting values from store
   commutingLine.value = await storage.getItem(`local:currentLine:${tabId.value}`)
@@ -246,7 +245,6 @@ onMounted(async () => {
       displayLine.value.contents = displayLine.value.contents?.filter((s: any) => s.type === 'Link')
 
       nextPage.value = message.value.next
-      console.log('next page: ', nextPage.value)
 
       // if we got new content from the commutingLine we need to update the line in background script
       if (commuting && displayLine.value.id === commutingLine.value?.id && displayLine.value.contents.length > (commutingLine.value.contents?.length || Infinity)) {
@@ -261,7 +259,6 @@ onMounted(async () => {
           }
           return false
         })
-        console.log('station index: ', idx)
         // if we cant find the current site we fetch the next page
         if (idx < 0) {
           browser.runtime.sendMessage({
@@ -288,7 +285,7 @@ onMounted(async () => {
   })
 
   const modeUnwatch = storage.watch(`local:mode:${tabId.value}`, (newVal: 'idle' | 'leaving' | 'commuting' | 'arriving' | 'resting' | null) => {
-    console.log("mode changed to", newVal) // leave for debugging
+    // console.log("mode changed to", newVal) // leave for debugging
     if (newVal !== null) {
       if (newVal === 'idle') {
         commuting.value = false
@@ -324,10 +321,8 @@ function getImgUrl(src: PublicPath) {
 }
 
 function isAreNaChannel(): boolean {
-  const isAreNaDomain = window.location.hostname === 'www.are.na';
-  const hasChannelElements = !!document.querySelector('[aria-label="Search this channel"]');
-
-  console.log(isAreNaDomain, hasChannelElements, window.location)
+  const isAreNaDomain = window.location.hostname === 'www.are.na'
+  const hasChannelElements = !!document.querySelector('[aria-label="Search this channel"]')
 
   return isAreNaDomain && hasChannelElements;
 }

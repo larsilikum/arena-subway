@@ -343,7 +343,7 @@ async function pruneIfNeeded() {
       lastAccessed: (meta.lastAccessed as number) || 0,
     })
   }
-  console.log(totalSize)
+
   if (totalSize <= MAX_CACHE_SIZE) return
 
   // Sort oldest first

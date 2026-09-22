@@ -42,18 +42,13 @@ const filteredContents = computed<ArenaBlock[]>(() => {
 onMounted(() => {
   url.value = window.location.href
   setTimeout(() => {
-    console.log('more Stations available: ', props.moreStationsAvailable)
-    console.log('scroll container: ', stationScrollContainer.value?.scrollContainer)
-    console.log('nextPage eleent:', nextPage.value)
     if (stationScrollContainer.value?.scrollContainer && nextPage.value) {
-      console.log('adding intersection observer')
       const observerOptions = {
         root: stationScrollContainer.value?.scrollContainer,
         threshold: 1.0,
       }
       const observerCallback = (entries: IntersectionObserverEntry[]) => {
         entries.forEach(entry => {
-          console.log('intersect: ', entry)
           if (entry.isIntersecting && props.moreStationsAvailable) {
             emits('moreStations')
           }

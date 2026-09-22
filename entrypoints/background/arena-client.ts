@@ -14,6 +14,8 @@ import { parseChannelContents } from '@/types/type_conversions'
 // how many contents to fetch from a channel at once
 export const PER = useAppConfig().per
 
+const userAgentString = 'arena-rail/0.1 (rail.lars.garden)'
+
 let loggedIn: boolean | null = null
 
 export async function isLoggedIn(): Promise<boolean> {
@@ -36,7 +38,7 @@ export async function isPremium(): Promise<boolean> {
 let arena = createArena({
   token: async () => (await storage.getItem<string>('local:token')) || '',
   retry: { respectRateLimits: true, maxRetries: 1 },
-  userAgent: 'arena-rail/0.1 (rail.lars.garden)',
+  userAgent: userAgentString,
 })
 
 // =========================================== DATA FETCHING ===========================================
@@ -96,7 +98,7 @@ export async function getArenaToken(): Promise<string | null> {
     arena = createArena({
       token,
       retry: { respectRateLimits: true, maxRetries: 1 },
-      userAgent: 'arena-rail/0.1 (rail.lars.garden)',
+      userAgent: userAgentString,
     })
     return token
   }
@@ -147,7 +149,7 @@ export async function getArenaToken(): Promise<string | null> {
   arena = createArena({
     token: tokenRes.access_token,
     retry: { respectRateLimits: true, maxRetries: 1 },
-    userAgent: 'arena-rail/0.1 (rail.lars.garden)',
+    userAgent: userAgentString,
   })
 
   await arena.ping()

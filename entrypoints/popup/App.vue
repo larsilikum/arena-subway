@@ -13,7 +13,6 @@ const isPremium = ref<boolean>(false)
 const tabId = ref<number | null>(null)
 
 function setStorage(key: string, value: number | boolean) {
-  console.log('set value', key, value)
   storage.setItem(`local:${key}`, value)
 }
 
@@ -48,7 +47,6 @@ onMounted(async () => {
   }
 
   unwatchMode = storage.watch(`local:mode:${id}`, (m: 'idle' | 'leaving' | 'commuting' | 'arriving' | 'resting' | null) => {
-    console.log('mode changed: ', m)
     if (!m) return
     mode.value = m
   })
