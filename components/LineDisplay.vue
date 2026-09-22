@@ -20,14 +20,14 @@ const emits = defineEmits<{
 const url = ref<string>('')
 const color = computed<string>(() => {
   if (!props.line) return '#000'
-  return hashColor.hashStringToColor(props.line.slug).primary
+  return hashStringToColor(props.line.slug).primary
 })
 
 let observer: IntersectionObserver | null = null
 
 const textColor = computed<string>(() => {
   if (!props.line) return '#fff'
-  return hashColor.hashStringToColor(props.line.slug).secondary
+  return hashStringToColor(props.line.slug).secondary
 })
 
 const stationScrollContainer = useTemplateRef('stationScrollContainer')
@@ -83,7 +83,7 @@ function handleClick() {
 </script>
 
 <template>
-  <div :class="{ 'line': true, 'closed': closed, 'commuting': commuting }">
+  <div id="lineDisplay" :class="{ 'line': true, 'closed': closed, 'commuting': commuting }">
     <button v-if="!commuting" id="close" @click="handleClick()">
       <CloseIcon />
     </button>

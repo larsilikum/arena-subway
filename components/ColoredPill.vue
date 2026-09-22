@@ -40,7 +40,7 @@ const time = computed(() => {
   overflow: hidden;
 }
 
-.lines.inactive:not(:hover) {
+.lines.inactive:not(:hover, :focus-visible) {
   filter: grayscale();
 }
 
@@ -61,16 +61,19 @@ h5 {
   display: none;
 }
 
-.lines:hover .line-abbr {
+.lines:hover .line-abbr,
+.lines:focus-visible .line-abbr {
   animation: marquee v-bind(time) alternate ease-in-out infinite;
   transform-origin: 0 0;
 }
 
-.lines:hover span {
+.lines:hover span,
+.lines:focus-visible span {
   display: inline-block;
 }
 
-.lines:hover {
+.lines:hover,
+.lines:focus-visible {
   width: 5rem;
   /* max-width: max-content; */
   justify-content: start;

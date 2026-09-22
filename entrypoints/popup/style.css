@@ -1,10 +1,10 @@
 @font-face {
   font-family: 'Liberation Sans';
-  src: url('/fonts/LiberationSans-Regular');
+  src: url('/fonts/LiberationSans-Regular.ttf');
 }
 @font-face {
   font-family: 'Liberation Sans';
-  src: url('/fonts/LiberationSans-Regular');
+  src: url('/fonts/LiberationSans-Italic.ttf');
   font-style: italic;
 }
 
@@ -28,4 +28,9 @@ body {
   max-width: 1280px;
   margin: 0 auto;
   padding: 1em 1em 1.5em 1em;
+}
+
+button:focus {
+  background-color: Highlight;
+  color: HighlightText;
 }

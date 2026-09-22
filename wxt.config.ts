@@ -7,7 +7,7 @@ export default defineConfig({
     name: 'are.na-rail',
     description:
       'An extension to surf the web like taking a subway. Channels from are.na are used as subway lines.',
-    version: '0.1',
+    version: '1.0',
     homepage_url: 'https://arena-rail.lars.garden',
     // manifest_version: 3,
     host_permissions: ['https://api.are.na/*'],

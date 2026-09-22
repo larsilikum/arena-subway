@@ -370,49 +370,60 @@ onBeforeUnmount(() => {
         :more-stations-available="nextPage !== null" />
     </template>
     <!-- The Bar at the bottom of the screen -->
-    <header v-if="!commutingAnimation && headerOpen !== null" :class="{ 'closed': !headerOpen }">
+    <header id="rail-controls" v-if="!commutingAnimation && headerOpen !== null" :class="{ 'closed': !headerOpen }">
       <!-- The Current Line when on a subway -->
       <LineAbbreviation v-if="commuting && commutingLine" :line="commutingLine" :inactive="false"
-        @open="slug => openLine(slug)" />
+        @open="slug => openLine(slug)" tabindex="0" :aria-label="`open the current line '${commutingLine.title}'`"
+        role="button" :aria-expanded="lineOpen" aria-controls="lineDisplay" />
       <!-- Action Buttons for when commuting -->
-      <button id="leave-button" v-if="commuting && !commutingAnimation" @click="stopRide" title="stop ride">
+      <button id="leave-button" v-if="commuting && !commutingAnimation" @click="stopRide" title="stop ride"
+        aria-label="stop ride">
         <div id="leave-icon"></div>
       </button>
       <button id="next-station-button" v-if="commuting && !commutingAnimation" @click="goToNextStation()"
-        title="go to next site">
+        title="go to next site" aria-label="go to next site">
         <NextIcon />
       </button>
       <!-- The channels for this webpage -->
       <ColoredPill id="lines-amount" v-if="!headerOpen && searched" @click="changeHeaderMode(true)"
-        :bg-color="'Highlight'" :text-color="'HighlightText'" :abbr="`${lines.length}`"
-        :rest-text="'&ThickSpace;lines'" />
+        @keyup.enter="changeHeaderMode(true)" @keyup.space="changeHeaderMode" :bg-color="'Highlight'"
+        :text-color="'HighlightText'" :abbr="`${lines.length}`" :rest-text="'&ThickSpace;lines'" tabindex="0"
+        :aria-label="`expand are.na rail interface`" role="button" :aria-expanded="headerOpen"
+        aria-controls="rail-controls" />
       <template v-else-if="headerOpen && searched">
         <p id="channel-label">lines:</p>
         <template v-if="lines">
           <HorizontalScroll class="lines-container">
             <LineAbbreviation v-for="l in lines" :inactive="lineOpen && l.slug != displayLine?.slug" :line="l"
-              @open="slug => openLine(slug)" />
+              @open="slug => openLine(slug)" tabindex="0" :aria-label="`open the line '${l.title}'`" role="button"
+              :aria-expanded="lineOpen" aria-controls="lineDisplay" />
           </HorizontalScroll>
         </template>
       </template>
       <template v-else-if="isPremium">
         <button v-if="headerOpen" id="fetch-button" @click="fetchButton">→ get lines</button>
-        <ColoredPill v-else id="fetch-button" @click="fetchButton" :bg-color="'Highlight'" :text-color="'HighlightText'"
-          :abbr="'→'" :rest-text="'&ThickSpace;get lines'" />
+        <ColoredPill v-else id="fetch-button" @click="fetchButton" @keyup.enter="fetchButton" @keyup.space="fetchButton"
+          :bg-color="'Highlight'" :text-color="'HighlightText'" :abbr="'→'" :rest-text="'&ThickSpace;get lines'"
+          tabindex="0" :aria-label="`expand are.na rail interface and get lines`" role="button"
+          :aria-expanded="headerOpen" aria-controls="rail-controls" />
       </template>
       <template v-else>
         <p v-if="headerOpen" id="no-premium">you need to be logged in with a premium/supporter account to enter the
           subway.</p>
-        <ColoredPill v-else id="no-premium" @click="changeHeaderMode(true)" :bg-color="'Highlight'"
-          :text-color="'HighlightText'" :abbr="'!'" :rest-text="'&ThickSpace;not logged in with premium account'" />
+        <ColoredPill v-else id="no-premium" @click="changeHeaderMode(true)" @keyup.enter="changeHeaderMode(true)"
+          @keyup.space="changeHeaderMode(true)" :bg-color="'Highlight'" :text-color="'HighlightText'" :abbr="'!'"
+          :rest-text="'&ThickSpace;not logged in with premium account'" tabindex="0"
+          :aria-label="`expand are.na rail interface`" role="button" :aria-expanded="headerOpen"
+          aria-controls="rail-controls" />
       </template>
       <!-- Buttons enabling to start a ride towards the start or end of the channel -->
       <div class="button-container" v-if="!commuting && displayLine && displayLine.contents?.length && lineOpen">
-        <button v-if="stationIndex !== 0" @click="startRide('backwards')">
+        <button v-if="stationIndex !== 0" @click="startRide('backwards')"
+          aria-label="start ride towards beginning of line">
           <NextIcon class="next-icon backwards" /> <span>{{ displayLine.contents[0].title }}</span>
         </button>
         <button v-if="stationIndex < displayLine.contents.length - 1 && displayLine.contents.length > 0"
-          @click="startRide('forwards')">
+          @click="startRide('forwards')" aria-label="start ride towards end of line">
           <span>{{ displayLine.contents[displayLine.contents.length - 1].title }}</span>
           <NextIcon class="next-icon" />
         </button>
@@ -420,7 +431,9 @@ onBeforeUnmount(() => {
       <!-- The Countdown till we're going to the next station -->
       <Countdown v-if="commuting && !commutingAnimation" :header-open="headerOpen" />
       <!-- Close Header Button -->
-      <button v-if="headerOpen" id="close-all" @click="changeHeaderMode(false)">
+      <button v-if="headerOpen" id="close-all" @click="changeHeaderMode(false)" @keyup.enter="changeHeaderMode(false)"
+        @keyup.space="changeHeaderMode(false)" aria-label="minify are.na rail controls" aria-controls="rail-controls"
+        :aria-expanded="headerOpen">
         <CloseIcon />
       </button>
     </header>

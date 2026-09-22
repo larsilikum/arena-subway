@@ -93,21 +93,22 @@ onBeforeUnmount(() => {
     <br>
     <label for="restAtStation">time waiting per site</label>
     <div class="input-wrapper">
-      <input type="range" name="restAtStation" id="" min="30" max="200" @change="setStorage('restingTime', restVal)"
-        v-model.number="restVal">
+      <input type="range" name="restAtStation" id="restAtStation" min="30" max="200"
+        @change="setStorage('restingTime', restVal)" v-model.number="restVal">
       <p>{{ convertToTime(restVal) }}</p>
     </div>
 
     <div class="input-wrapper">
       <label for="instantCommute">fun mode</label>
-      <input type="checkbox" name="instantCommute" id="" @change="setStorage('funMode', funMode)" v-model="funMode">
+      <input type="checkbox" name="instantCommute" id="instantCommute" @change="setStorage('funMode', funMode)"
+        v-model="funMode">
     </div>
 
     <template v-if="funMode">
       <label for="commutingTime">time for commuting between stations</label>
       <div class="input-wrapper">
-        <input type="range" name="commuting time" min="10" max="40" @change="setStorage('commutingTime', commVal)"
-          v-model.number="commVal">
+        <input type="range" name="commuting time" id="commutingTime" min="10" max="40"
+          @change="setStorage('commutingTime', commVal)" v-model.number="commVal">
         <p>{{ convertToTime(commVal) }}</p>
       </div>
     </template>
@@ -126,10 +127,10 @@ onBeforeUnmount(() => {
       </span>
     </button>
     <div v-show="mode === 'resting'" class="commuting-buttons">
-      <button id="leave-button" @click="stopCommute" title="stop ride">
+      <button id="leave-button" @click="stopCommute" title="stop ride" aria-label="stop ride">
         <div id="leave-icon"></div>
       </button>
-      <button id="next-station-button" @click="skipStation" title="go to next site">
+      <button id="next-station-button" @click="skipStation" title="go to next site" aria-label="go to next site">
         <NextIcon />
       </button>
     </div>

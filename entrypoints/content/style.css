@@ -1,14 +1,14 @@
 html {
-	position: fixed;
-	top: 0;
-	left: 0;
-	z-index: 99999999999;
-	pointer-events: none;
-	font-family: "Liberation Sans", sans-serif;
-	width: 100%;
-	max-width: 100dvw;
-	height: 100dvh;
-	color-scheme: light dark;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 99999999999;
+  pointer-events: none;
+  font-family: 'Liberation Sans', sans-serif;
+  width: 100%;
+  max-width: 100dvw;
+  height: 100dvh;
+  color-scheme: light dark;
 }
 
 /* html:has(#background.leaving), html:has(#background.arriving) {
@@ -18,33 +18,34 @@ html {
 } */
 
 :root {
-	font-size: medium;
+  font-size: medium;
 }
 
 body {
-	margin: 0;
-	max-width: 100%;
-	height: 100%;
-	/* --text-color: #df5ffd; */
-	--text-color: white;
-	color: var(--text-color);
+  margin: 0;
+  max-width: 100%;
+  height: 100%;
+  /* --text-color: #df5ffd; */
+  --text-color: white;
+  color: var(--text-color);
 }
 
 button {
-	font-family: inherit;
-	display: flex;
-	background-color: #333;
-	color: white;
-	border: 1px solid white;
-	height: 1.7em;
-	border-radius: 0.5em;
-	padding: 0.3em 0.5em 0 0.5em;
-	cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  background-color: #333;
+  color: white;
+  border: 1px solid white;
+  height: 1.7em;
+  border-radius: 0.5em;
+  padding: 0.3em 0.5em 0 0.5em;
+  cursor: pointer;
 }
 
-button:hover {
-	background-color: Highlight;
-	color: HighlightText;
+button:hover,
+button:focus-visible {
+  background-color: Highlight;
+  color: HighlightText;
 }
 /* 
 @media screen and (min-width: 1920px) {
