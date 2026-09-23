@@ -12,9 +12,9 @@ import type { ArenaBlock, ArenaChannel } from '@/types'
 import { parseChannelContents } from '@/types/type_conversions'
 
 // how many contents to fetch from a channel at once
-export const PER = useAppConfig().per
+export const PER = getAppConfig().per
 
-const userAgentString = 'arena-rail/0.1 (rail.lars.garden)'
+const userAgentString = 'arena-rail/1.0 (rail.lars.garden)'
 
 let loggedIn: boolean | null = null
 
@@ -84,9 +84,9 @@ export async function fetchChannelContents(
 let CLIENT_ID = ''
 
 if (import.meta.env.FIREFOX) {
-  CLIENT_ID = useAppConfig().firefox_arena_client_id
+  CLIENT_ID = getAppConfig().firefox_arena_client_id
 } else {
-  CLIENT_ID = useAppConfig().chrome_arena_client_id
+  CLIENT_ID = getAppConfig().chrome_arena_client_id
 }
 
 export async function getArenaToken(): Promise<string | null> {
@@ -154,8 +154,6 @@ export async function getArenaToken(): Promise<string | null> {
 
   await arena.ping()
   const tier = arena.rateLimit?.tier
-
-  console.log(tier)
 
   if (tier) await storage.setItem('local:tier', tier)
 

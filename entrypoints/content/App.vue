@@ -231,7 +231,7 @@ onMounted(async () => {
       const all = [...message.channels, ...lines.value]
       const linesMap = new Map(all.map(c => [c.id || c.slug, c]))
       // as we cant know where in a channel we can find the current station we only use channels with 300 blocks or less, so we only need max 3 requests to find our station
-      lines.value = Array.from(linesMap.values()).filter((l: ArenaChannel) => l.counts.contents <= (useAppConfig()).max_channel_length)
+      lines.value = Array.from(linesMap.values()).filter((l: ArenaChannel) => l.counts.contents <= (getAppConfig()).max_channel_length)
       // displayLine.value = lines.value[0] // for debugging
     } else if (message.type === "arenaChannelReceived") {
       lines.value = [message.value.channel]

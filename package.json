@@ -17,12 +17,15 @@
   "dependencies": {
     "@aredotna/sdk": "^0.1.1",
     "@vueuse/core": "^14.2.1",
-    "@wxt-dev/auto-icons": "^1.1.0",
     "vue": "^3.5.25"
   },
   "devDependencies": {
+    "@wxt-dev/auto-icons": "^1.1.2",
     "@wxt-dev/module-vue": "^1.0.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
     "vue-tsc": "^3.1.8",
-    "wxt": "^0.20.6"
+    "web-ext": "^10.7.0",
+    "wxt": "^0.21.4"
   }
 }

@@ -1,7 +1,63 @@
-# WXT + Vue 3
+# are.na rail
 
-This template should help get you started developing with Vue 3 in WXT.
+a small web extension to browser through are.na channels. Built with [wxt](https://wxt.dev)
 
-## Recommended IDE Setup
+## development
 
-- [VS Code](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar).
+install dependencies
+
+```
+pnpm i
+```
+
+chrome dev server
+
+```
+pnpm run dev
+```
+
+firefox dev server
+
+```
+pnpm run dev:firefox
+```
+
+## build
+
+install dependencies
+
+```
+pnpm i
+```
+
+build chrome extension
+
+```
+pnpm run build
+```
+
+build firefox extension
+
+```
+pnpm run build:firefox
+```
+
+## zip
+
+install dependencies
+
+```
+pnpm i
+```
+
+build chrome zip
+
+```
+pnpm run zip
+```
+
+build firefox zip
+
+```
+pnpm run zip:firefox
+```

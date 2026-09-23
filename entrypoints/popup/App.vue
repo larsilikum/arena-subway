@@ -83,7 +83,8 @@ onBeforeUnmount(() => {
 <template>
   <div class="popup">
     <div class="header">
-      <input type="checkbox" name="onoff" id="onoff" @change="setStorage('enabled', enabled)" v-model="enabled">
+      <input type="checkbox" name="onoff" id="onoff" @change="setStorage('enabled', enabled)" v-model="enabled"
+        aria-label="toggle extension">
       <h1>
         are.na rail
       </h1>

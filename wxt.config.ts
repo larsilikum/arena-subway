@@ -20,6 +20,9 @@ export default defineConfig({
     browser_specific_settings: {
       gecko: {
         id: 'are.na-rail@lars.garden',
+        data_collection_permissions: {
+          required: ['websiteContent', 'authenticationInfo'],
+        },
       },
     },
   },

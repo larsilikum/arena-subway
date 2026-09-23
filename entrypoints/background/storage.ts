@@ -1,4 +1,4 @@
-import type { Block, Channel } from '@aredotna/sdk'
+import type { Channel } from '@aredotna/sdk'
 import type { ArenaBlock, ArenaChannel, Message } from '@/types'
 import {
   apiBlockToArenaBlock,
@@ -9,12 +9,10 @@ import {
   fetchChannel,
   fetchChannelContents,
   fetchSearchBlocks,
-  isLoggedIn,
   isPremium,
   PER,
 } from './arena-client'
 import { delay } from '@/utils'
-import { useAppConfig } from '#imports'
 
 // ============================================== storage wrapper =================================================
 // get Channel when we are on arena channel page
@@ -123,7 +121,7 @@ export function getStationLinesByTitle(message: Message, activeTabId: number) {
           // only count channels we are going to use
           const shortChannels = channels.filter(
             (channel) =>
-              channel.counts.contents < useAppConfig().max_channel_length
+              channel.counts.contents < getAppConfig().max_channel_length
           )
           channelAmount += shortChannels.length
           // could also just send the filtered channels, but i think its more readable filtering again in app.vue
