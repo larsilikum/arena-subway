@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { convertToTime } from '@/utils'
-import NextIcon from '@/components/NextIcon.vue'
+import type { PublicPath } from 'wxt/browser'
 
 const restVal = ref<number>(30)
 const commVal = ref<number>(10)
@@ -18,8 +18,8 @@ function setStorage(key: string, value: number | boolean) {
 
 async function getCurrentTabId(): Promise<number | undefined> {
   const tabs = await browser.tabs.query({ active: true, currentWindow: true })
-  if (tabs[0].id) tabId.value = tabs[0].id
-  return tabs[0].id
+  if (tabs[0]?.id) tabId.value = tabs[0].id
+  return tabs[0]?.id || undefined
 }
 
 async function skipStation() {
@@ -32,6 +32,10 @@ async function stopCommute() {
   const id = await getCurrentTabId()
   if (!id) return
   await storage.setItem(`local:commuting:${id}`, false)
+}
+
+function getImgUrl(src: PublicPath) {
+  return browser.runtime.getURL(src)
 }
 
 let unwatchMode = () => { }
@@ -104,18 +108,15 @@ onBeforeUnmount(() => {
     </div>
 
     <template v-if="funMode">
-      <label for="commutingTime">time for commuting between stations</label>
+      <label for="commutingTime"><span>time for commuting between stations</span></label>
       <div class="input-wrapper">
         <input type="range" name="commuting time" id="commutingTime" min="10" max="40"
           @change="setStorage('commutingTime', commVal)" v-model.number="commVal">
         <p>{{ convertToTime(commVal) }}</p>
       </div>
     </template>
-    <label v-if="!isPremium" class="additional-info">to get lines that contain this website you need to be logged in
-      with an
-      are.na
-      premium
-      account. With a free account you can only start from the page of an are.na channel.</label>
+    <label v-if="!isPremium" class="additional-info"><span>to get lines that contain this website you need to be logged in
+      with an are.na premium account. With a free account you can only start from the page of an are.na channel.</span></label>
     <button id="login" @click="authorizeArena()">
       <span v-if="!isAuthorized">authorize</span>
       <span class="gray" v-else>
@@ -130,7 +131,7 @@ onBeforeUnmount(() => {
         <div id="leave-icon"></div>
       </button>
       <button id="next-station-button" @click="skipStation" title="go to next site" aria-label="go to next site">
-        <NextIcon />
+        <img :src="getImgUrl('/svg/next.svg')" class="next-svg-icon" />
       </button>
     </div>
   </div>
@@ -139,6 +140,13 @@ onBeforeUnmount(() => {
 <style scoped>
 .gray {
   color: GrayText;
+}
+
+.next-svg-icon {
+  fill: white;
+  height: 65%;
+  margin-left: 5%;
+  flex-grow: 0;
 }
 
 .header {

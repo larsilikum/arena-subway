@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ArenaChannel } from '@/types'
+import type { ArenaChannel } from '@/types'
 import ColoredPill from './ColoredPill.vue'
 
 defineProps<{

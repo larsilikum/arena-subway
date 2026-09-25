@@ -1,15 +1,14 @@
 <script lang="ts" setup>
 import LineDisplay from '@/components/LineDisplay.vue'
-import NextIcon from '@/components/NextIcon.vue'
 import CloseIcon from '@/components/CloseIcon.vue'
 import LineAbbreviation from '@/components/LineAbbreviation.vue'
 import HorizontalScroll from '@/components/HorizontalScroll.vue'
 import ColoredPill from '@/components/ColoredPill.vue'
 import Countdown from '@/components/Header/Countdown.vue'
-import { ArenaBlock, ArenaChannel } from '@/types'
 import { isSameRoute } from '@/utils'
-import { PublicPath } from 'wxt/browser'
 import { computedAsync } from '@vueuse/core'
+import type { ArenaBlock, ArenaChannel } from '@/types'
+import type { PublicPath } from 'wxt/browser'
 
 
 // data
@@ -377,7 +376,7 @@ onBeforeUnmount(() => {
       </button>
       <button id="next-station-button" v-if="commuting && !commutingAnimation" @click="goToNextStation()"
         title="go to next site" aria-label="go to next site">
-        <NextIcon />
+        <img :src="getImgUrl('/svg/next.svg')" class="next-svg-icon" />
       </button>
       <!-- The channels for this webpage -->
       <ColoredPill id="lines-amount" v-if="!headerOpen && searched" @click="changeHeaderMode(true)"
@@ -415,12 +414,12 @@ onBeforeUnmount(() => {
       <div class="button-container" v-if="!commuting && displayLine && displayLine.contents?.length && lineOpen">
         <button v-if="stationIndex !== 0" @click="startRide('backwards')"
           aria-label="start ride towards beginning of line">
-          <NextIcon class="next-icon backwards" /> <span>{{ displayLine.contents[0].title }}</span>
+          <img :src="getImgUrl('/svg/next.svg')" class="next-icon backwards next-svg-icon" /> <span>{{ displayLine.contents[0]?.title }}</span>
         </button>
         <button v-if="stationIndex < displayLine.contents.length - 1 && displayLine.contents.length > 0"
           @click="startRide('forwards')" aria-label="start ride towards end of line">
-          <span>{{ displayLine.contents[displayLine.contents.length - 1].title }}</span>
-          <NextIcon class="next-icon" />
+          <span>{{ displayLine.contents[displayLine.contents.length - 1]?.title }}</span>
+          <img :src="getImgUrl('/svg/next.svg')" class="next-icon next-svg-icon" />
         </button>
       </div>
       <!-- The Countdown till we're going to the next station -->
@@ -589,6 +588,13 @@ button span {
   white-space: nowrap;
   display: inline-block;
   text-overflow: ellipsis;
+}
+
+.next-svg-icon {
+  fill: white;
+  height: 65%;
+  margin-left: 5%;
+  flex-grow: 0;
 }
 
 button .next-icon {

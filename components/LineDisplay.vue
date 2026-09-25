@@ -2,7 +2,7 @@
 import LineDisplayStation from './LineDisplayStation.vue'
 import HorizontalScroll from './HorizontalScroll.vue'
 import CloseIcon from './CloseIcon.vue'
-import { ArenaBlock, ArenaChannel } from '@/types/index.js'
+import type { ArenaBlock, ArenaChannel } from '@/types/index.js'
 
 const props = defineProps<{
   line: ArenaChannel

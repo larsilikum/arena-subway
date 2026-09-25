@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ArenaBlock } from '@/types';
+import type { ArenaBlock } from '@/types'
 
 const props = defineProps<{
   station: ArenaBlock,
