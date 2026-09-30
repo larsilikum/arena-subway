@@ -63,7 +63,12 @@ export default defineBackground(() => {
     if (newVal !== null) funMode = newVal
   })
 
-  storage.setItem('local:enabled', true)
+  // only set enabled when there is none
+  storage.getItem<boolean>('local:enabled').then((enabled: boolean | null) => {
+    if (enabled === null) {
+      storage.setItem('local:enabled', false)
+    }
+  })
 
   // storage.setItem('local:mode', "idle")
 
