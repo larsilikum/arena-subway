@@ -28,7 +28,7 @@ const time = computed(() => {
   height: 1.5em;
   text-align: center;
   margin: 0;
-  border-radius: .75em;
+  border-radius: 1.5em;
   display: flex;
   flex-shrink: 0;
   justify-content: center;

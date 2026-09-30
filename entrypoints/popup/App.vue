@@ -90,7 +90,7 @@ onBeforeUnmount(() => {
       <input type="checkbox" name="onoff" id="onoff" @change="setStorage('enabled', enabled)" v-model="enabled"
         aria-label="toggle extension">
       <h1>
-        are.na rail
+        are.na-rail
       </h1>
     </div>
     <br>
@@ -115,8 +115,10 @@ onBeforeUnmount(() => {
         <p>{{ convertToTime(commVal) }}</p>
       </div>
     </template>
-    <label v-if="!isPremium" class="additional-info"><span>to get lines that contain this website you need to be logged in
-      with an are.na premium account. With a free account you can only start from the page of an are.na channel.</span></label>
+    <label v-if="!isPremium" class="additional-info"><span>to get lines that contain this website you need to be logged
+        in
+        with an are.na premium account. With a free account you can only start from the page of an are.na
+        channel.</span></label>
     <button id="login" @click="authorizeArena()">
       <span v-if="!isAuthorized">authorize</span>
       <span class="gray" v-else>

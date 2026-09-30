@@ -66,7 +66,7 @@ export default defineBackground(() => {
   // only set enabled when there is none
   storage.getItem<boolean>('local:enabled').then((enabled: boolean | null) => {
     if (enabled === null) {
-      storage.setItem('local:enabled', false)
+      storage.setItem('local:enabled', true)
     }
   })
 
@@ -158,7 +158,7 @@ export default defineBackground(() => {
     let stationIndex: number = 0
 
     // if we are already commuting (stations is filled) we want to search for the old start url instead of the url from the current station.
-    const startUrl = stations.length ? stations[0].source?.url : url
+    const startUrl = stations[0] ? stations[0].source?.url : url
 
     // if we dont start from an arena channel, we need to find where we are on the line and cut the stations in the other direction
     if (!fromArena) {
@@ -223,10 +223,10 @@ export default defineBackground(() => {
         contents.findIndex(
           (s) =>
             s.type !== 'Channel' &&
-            isSameRoute(s.source?.url || '', stations[i].source?.url || '_')
+            isSameRoute(s.source?.url || '', stations[i]?.source?.url || '_')
         )
       )
-      await browser.tabs.update(tab.id, { url: stations[i].source?.url })
+      await browser.tabs.update(tab.id, { url: stations[i]?.source?.url })
     })
   }
 

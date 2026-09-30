@@ -43,13 +43,14 @@ export async function getLine(slug: string, tab: Browser.tabs.Tab | undefined) {
 export async function getLines(
   message: Message,
   tab: Browser.tabs.Tab | undefined,
-  currentStation: ArenaBlock
+  currentStation?: ArenaBlock
 ) {
   if (!tab || !tab.id) return
   const commuting = await storage.getItem(`local:commuting:${tab.id}`)
   // when we are commuting we dont want to fetch new lines while browsing the current station, we just send the ones from the current station
   if (
     commuting &&
+    currentStation &&
     currentStation.source &&
     !isSameRoute(currentStation.source.url, message.value.url)
   ) {
@@ -62,7 +63,7 @@ export async function getLines(
   const station = await getStationByUrl(message.value.url)
   // check if this tab is commuting at the moment
   // when we're commuting we might get new channels for an already existing station by checking the blocks channels?
-  if (commuting && tab.id) {
+  if (commuting && currentStation && tab.id) {
     firstPromises.push(getCurrentStationLines(tab.id, currentStation))
   } else if (station && tab.id) {
     sendStoredStationLines(tab.id, station.channels || [])
