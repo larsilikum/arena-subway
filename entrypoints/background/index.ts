@@ -42,15 +42,29 @@ export default defineBackground(() => {
     ['responseHeaders'] //  optional array of strings
   )
 
-  // TODO: get modeTimes and funMode from storage if they exist
+  // populate modeTimes with default values
   const modeTimes = {
     leaving: 2000,
     commuting: 10000,
     arriving: 2000,
     resting: 30000,
   }
+
   // popup config
   let funMode: boolean = false
+
+  // get mode Times from storage
+  storage.getItem<number>('local:commutingTime').then(cTime => {
+    if (cTime !== null) modeTimes.commuting = cTime
+  })
+
+  storage.getItem<number>('local:restingTime').then(rTime => {
+    if (rTime !== null) modeTimes.resting = rTime
+  })
+
+  storage.getItem<boolean>('local:funMode').then(fM => {
+    if (fM !== null) funMode = fM
+  })
 
   // watch storage for popup config values
   storage.watch('local:commutingTime', (newVal: number | null) => {

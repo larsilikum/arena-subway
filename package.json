@@ -2,7 +2,7 @@
   "name": "are.na rail",
   "description": "a browser extension using are.na channels as subway lines",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.2",
   "type": "module",
   "scripts": {
     "dev": "wxt",
